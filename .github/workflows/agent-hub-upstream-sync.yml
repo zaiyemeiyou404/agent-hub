@@ -16,13 +16,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      GH_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN || github.token }}
       SYNC_BRANCH: sync/upstream-develop
     steps:
       - uses: actions/checkout@v4
         with:
           ref: develop
           fetch-depth: 0
+          token: ${{ secrets.UPSTREAM_SYNC_TOKEN || github.token }}
       - name: Merge upstream into a review branch, preserving history
         shell: bash
         run: |

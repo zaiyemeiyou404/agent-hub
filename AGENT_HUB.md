@@ -148,9 +148,14 @@ COMPLETION_ROUTING_MAX_HANDOFFS=6
 不自动合并、不强推、不删除标签。合并冲突会让工作流失败，应在该同步分支解决后继续。
 如上游更改默认分支，需要手动审阅并调整工作流。
 
-Fork 的 Actions 可能默认停用；在 Actions 启用这两个 Agent Hub 工作流即可。
-工作流权限需允许创建 Pull Request；同步工作流需 contents/pull-requests/actions 写权限。
-上游导入的发布、部署等工作流保持停用；启用前应逐个审阅其目标和权限。
+本仓库已启用这两个 Agent Hub 工作流，并允许工作流创建 Pull Request；
+同步工作流使用 contents/pull-requests/actions 写权限，验证工作流只读仓库。
+上游导入的其他工作流已在仓库设置中停用；启用前应逐个审阅其发布、部署目标和权限。
+再次 Fork 时，需重新检查 Actions 开关和创建 PR 的权限。
+默认使用仓库自带 GITHUB_TOKEN。如 GitHub 因工作流文件写权限拒绝推送上游更新，
+可在本仓库 Actions secrets 配置 `UPSTREAM_SYNC_TOKEN`，使用仅限此仓库的令牌，
+授予 Contents、Pull requests、Actions、Workflows 所需写权限，或改用下方本地合并方式。
+当前没有把你的本机 GitHub 凭据存入仓库或 Actions secrets。
 公共仓库定时工作流可能因长期无活动而被 GitHub 停用；届时重新启用或手动执行。
 
 也可以本地合并（先确认工作区干净）：
@@ -179,5 +184,6 @@ docker compose --env-file workspace/.env -f workspace/docker-compose.agent-hub.y
 数据库迁移可能不可逆，回滚应用版本前应核对迁移兼容性。
 
 新增 `Agent Hub Verify` 在 Ubuntu/Python 3.12/Node 22 上检查 Compose、适配器、
-工作区、文件权限、线程协作、完成后路由、审阅交接和响应模式。
+工作区、文件权限、线程协作、完成后路由、审阅交接和响应模式，并在一次性 Docker 环境
+构建启动前后端、执行数据库迁移，通过自建 Agent 实际回复及上传下载文件。
 首次交付的实际执行情况见 [验证记录](workspace/agent-hub/VALIDATION.md)。

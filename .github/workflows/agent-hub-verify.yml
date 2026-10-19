@@ -8,6 +8,7 @@ on:
       - 'workspace/**'
       - 'packages/agent-connector/**'
       - 'scripts/agent-hub-init.sh'
+      - 'scripts/agent-hub-smoke.cjs'
       - '.github/workflows/agent-hub-*.yml'
   pull_request:
     branches: [develop]
