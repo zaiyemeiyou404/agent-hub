@@ -2,6 +2,8 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# The public API URL is injected by the image workflow; self-hosted deployments
+# can use the same HTTPS origin as the frontend and route /v1/* through Caddy.
 ARG NEXT_PUBLIC_API_URL=https://workspace-endpoint.openagents.org
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 # Self-hosted / preview deployments on their own domain (see

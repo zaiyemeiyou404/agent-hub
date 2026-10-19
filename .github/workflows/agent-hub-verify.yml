@@ -9,6 +9,7 @@ on:
       - 'packages/agent-connector/**'
       - 'scripts/agent-hub-init.sh'
       - 'scripts/agent-hub-smoke.cjs'
+      - 'scripts/test-agent-hub-ghcr.py'
       - '.github/workflows/agent-hub-*.yml'
   pull_request:
     branches: [develop]
@@ -35,6 +36,8 @@ jobs:
           bash -n scripts/agent-hub-init.sh
           bash scripts/agent-hub-init.sh
           docker compose --env-file workspace/.env -f workspace/docker-compose.agent-hub.yml config --quiet
+          AGENT_HUB_IMAGE_TAG="$GITHUB_SHA" docker compose --env-file workspace/.env -f workspace/docker-compose.agent-hub.images.yml config --quiet
+          python scripts/test-agent-hub-ghcr.py
       - name: Install connector dependencies
         working-directory: packages/agent-connector
         run: npm ci --ignore-scripts --no-audit --no-fund

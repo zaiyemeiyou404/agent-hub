@@ -42,6 +42,35 @@ curl --fail http://localhost:8000/ready
 配置不会提交真实凭据。`migrate` 成功执行 `alembic upgrade head` 后才会启动后端；
 后端就绪后才会启动前端。使用上游 `production.Dockerfile` 和生产依赖约束文件。
 
+### 使用 GitHub 构建的镜像
+
+`Agent Hub Images` 工作流会在 GitHub Actions 构建前后端，并发布到 GHCR，避免小内存服务器
+执行 Next.js 和 Python 镜像构建。所有第三方 Action 固定到完整提交 SHA；工作流只有读取源码、
+写入包、签发镜像来源证明所需的权限。
+
+前端会在构建时固化公开 API 地址。部署域名前，先在仓库 Variables 中设置
+`AGENT_HUB_API_URL`，或者手动运行工作流时填写 `api_url`。构建完成后，将工作流对应的完整
+Git commit SHA 写入 `workspace/.env`：
+
+```dotenv
+AGENT_HUB_IMAGE_OWNER=zaiyemeiyou404
+AGENT_HUB_IMAGE_TAG=<verified-full-commit-sha>
+```
+
+不要使用可移动的 `develop` 标签部署生产环境。确认两个 GHCR 包允许目标服务器读取；若包为
+私有，仅向服务器提供只有 `read:packages` 权限的凭据。随后服务器只拉取和启动镜像：
+
+```bash
+docker compose --env-file workspace/.env \
+  -f workspace/docker-compose.agent-hub.images.yml pull
+docker compose --env-file workspace/.env \
+  -f workspace/docker-compose.agent-hub.images.yml up -d
+curl --fail http://localhost:8000/ready
+```
+
+此方式不会把数据库密码、Workspace Token 或模型密钥写入镜像；这些值仍只保存在服务器的
+`workspace/.env`。升级时换成新的已验证提交 SHA，先备份数据库和文件卷，再重新拉取启动。
+
 默认监听服务器回环地址：前端 `127.0.0.1:3000`，API `127.0.0.1:8000`，数据库不发布端口。
 远程首次体验可用 SSH 隧道：
 
