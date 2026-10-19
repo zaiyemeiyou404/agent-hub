@@ -27,6 +27,10 @@ for image in ("agent-hub-backend", "agent-hub-frontend"):
     assert image in workflow_text, f"workflow does not publish {image}"
     assert image in compose_text, f"Compose does not consume {image}"
 
+assert "branches: [develop]" not in workflow_text, "image workflow must be testable from feature branches"
+assert ":develop" not in workflow_text, "published images must use immutable commit tags only"
+assert "github.sha" in workflow_text, "workflow does not tag images by commit SHA"
+
 assert "build:" not in compose_text, "prebuilt-image Compose must not build on the server"
 assert "AGENT_HUB_IMAGE_TAG" in compose_text, "Compose images are not pinned by an explicit tag"
 assert "127.0.0.1:${API_PORT:-8000}:8000" in compose_text
