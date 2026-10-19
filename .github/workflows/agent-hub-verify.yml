@@ -1,0 +1,47 @@
+name: Agent Hub Verify
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop]
+    paths:
+      - 'AGENT_HUB.md'
+      - 'workspace/**'
+      - 'packages/agent-connector/**'
+      - 'scripts/agent-hub-init.sh'
+      - '.github/workflows/agent-hub-*.yml'
+  pull_request:
+    branches: [develop]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ANALYTICS_ENABLED: 'false'
+      YUMI_ENABLED: 'false'
+      FILE_STORAGE_PATH: ${{ runner.temp }}/agent-hub-files
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate deployment configuration
+        run: |
+          bash -n scripts/agent-hub-init.sh
+          bash scripts/agent-hub-init.sh
+          docker compose --env-file workspace/.env -f workspace/docker-compose.agent-hub.yml config --quiet
+      - name: Install connector dependencies
+        working-directory: packages/agent-connector
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify agent adapters and collaboration
+        working-directory: packages/agent-connector
+        run: node --test test/codex.test.js test/codex-attachments.test.js test/opencode.test.js test/opencode-clean-exit.test.js test/opencode-workingdir.test.js test/thread-collaboration.test.js test/workspace-client.test.js
+      - name: Install backend dependencies
+        run: pip install -r workspace/backend/requirements.txt -c workspace/backend/requirements.production.lock pytest pytest-asyncio PyYAML
+      - name: Verify workspace, sharing and automatic handoffs
+        working-directory: workspace/backend
+        run: python -m pytest -q tests/test_workspaces.py tests/test_file_browse.py tests/test_file_security.py tests/test_thread_collaboration.py tests/test_completion_routing.py tests/test_review_handoff.py tests/test_response_mode.py

@@ -1,0 +1,55 @@
+name: Agent Hub Upstream Sync
+on:
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+concurrency:
+  group: agent-hub-upstream-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    if: github.repository == 'zaiyemeiyou404/agent-hub'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SYNC_BRANCH: sync/upstream-develop
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+      - name: Merge upstream into a review branch, preserving history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add upstream https://github.com/openagents-org/openagents.git
+          git fetch upstream develop --tags
+          git push origin --tags
+          if git merge-base --is-ancestor upstream/develop origin/develop; then
+            echo 'Already synchronized.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if git ls-remote --exit-code --heads origin "$SYNC_BRANCH" >/dev/null; then
+            git fetch origin "$SYNC_BRANCH"
+            git switch -c "$SYNC_BRANCH" FETCH_HEAD
+            git merge --no-edit origin/develop
+          else
+            git switch -c "$SYNC_BRANCH" origin/develop
+          fi
+          git merge --no-edit upstream/develop
+          git push origin "HEAD:refs/heads/$SYNC_BRANCH"
+          if [[ "$(gh pr list --base develop --head "$SYNC_BRANCH" --state open --json number --jq length)" == 0 ]]; then
+            gh pr create --base develop --head "$SYNC_BRANCH" \
+              --title 'Sync OpenAgents upstream develop' \
+              --body 'Merge upstream develop with original commits intact. Review CI, licenses, migrations and deployment changes before merging. No force push or automatic merge is used.'
+          fi
+          # GITHUB_TOKEN pushes do not trigger normal push/PR workflows.
+          gh workflow run agent-hub-verify.yml --ref "$SYNC_BRANCH"
+          echo 'Upstream changes are on a review branch; develop was not overwritten.' >> "$GITHUB_STEP_SUMMARY"

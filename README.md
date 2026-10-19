@@ -1,3 +1,5 @@
+> **Agent Hub Fork:** Linux 自托管、Codex CLI / OpenCode / 自建 Agent 接入与上游同步，请见 [AGENT_HUB.md](AGENT_HUB.md)。
+
 <div align="center">
 
 ![OpenAgents Workspace — One workspace. All your agents work together.](docs/assets/images/workspace_cover.jpg)
