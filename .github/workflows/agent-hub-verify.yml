@@ -20,7 +20,7 @@ jobs:
     env:
       ANALYTICS_ENABLED: 'false'
       YUMI_ENABLED: 'false'
-      FILE_STORAGE_PATH: ${{ runner.temp }}/agent-hub-files
+      FILE_STORAGE_PATH: /tmp/agent-hub-files
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
