@@ -45,3 +45,29 @@ jobs:
       - name: Verify workspace, sharing and automatic handoffs
         working-directory: workspace/backend
         run: python -m pytest -q tests/test_workspaces.py tests/test_file_browse.py tests/test_file_security.py tests/test_thread_collaboration.py tests/test_completion_routing.py tests/test_review_handoff.py tests/test_response_mode.py
+  self-host:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Initialize disposable deployment
+        run: |
+          bash scripts/agent-hub-init.sh
+          npm ci --prefix packages/agent-connector --ignore-scripts --no-audit --no-fund
+      - name: Build and start the complete Linux stack
+        run: docker compose --env-file workspace/.env -f workspace/docker-compose.agent-hub.yml up -d --build --wait --wait-timeout 180
+      - name: Verify HTTP and custom agent file sharing
+        run: |
+          curl --fail http://localhost:8000/ready
+          curl --fail --output /dev/null http://localhost:3000
+          node scripts/agent-hub-smoke.cjs
+      - name: Service logs
+        if: failure()
+        run: docker compose --env-file workspace/.env -f workspace/docker-compose.agent-hub.yml logs --tail=100
+      - name: Remove disposable containers and test volumes
+        if: always()
+        run: docker compose --env-file workspace/.env -f workspace/docker-compose.agent-hub.yml down -v
