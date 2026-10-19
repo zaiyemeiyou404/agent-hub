@@ -16,9 +16,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
-  id-token: write
-  attestations: write
 
 concurrency:
   group: agent-hub-images-${{ github.ref }}
@@ -26,6 +23,11 @@ concurrency:
 
 jobs:
   build:
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -64,3 +66,32 @@ jobs:
           subject-name: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
           subject-digest: ${{ steps.publish.outputs.digest }}
           push-to-registry: true
+
+  smoke:
+    needs: build
+    permissions:
+      contents: read
+      packages: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AGENT_HUB_IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Initialize disposable image deployment
+        run: |
+          bash scripts/agent-hub-init.sh
+          npm ci --prefix packages/agent-connector --ignore-scripts --no-audit --no-fund
+      - name: Pull and start the published images
+        run: docker compose --env-file workspace/.env -f workspace/docker-compose.agent-hub.images.yml up -d --pull always --wait --wait-timeout 180
+      - name: Verify HTTP, agent messaging and shared files
+        run: |
+          curl --fail http://localhost:8000/ready
+          curl --fail --output /dev/null http://localhost:3000
+          node scripts/agent-hub-smoke.cjs
+      - name: Service logs
+        if: failure()
+        run: docker compose --env-file workspace/.env -f workspace/docker-compose.agent-hub.images.yml logs --tail=100
+      - name: Remove disposable containers and test volumes
+        if: always()
+        run: docker compose --env-file workspace/.env -f workspace/docker-compose.agent-hub.images.yml down -v
