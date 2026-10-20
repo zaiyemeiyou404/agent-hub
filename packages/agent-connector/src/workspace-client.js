@@ -243,7 +243,36 @@ class WorkspaceClient {
     if (Array.isArray(deviceInfo.agents)) body.agents = deviceInfo.agents;
     if (Array.isArray(deviceInfo.runtimes)) body.runtimes = deviceInfo.runtimes;
     if (deviceInfo.fs && typeof deviceInfo.fs === 'object') body.fs = deviceInfo.fs;
+    if (Array.isArray(deviceInfo.capabilities)) body.capabilities = deviceInfo.capabilities;
     const data = await this._post('/v1/nodes/heartbeat', body, this._wsHeaders(token));
+    return data.data || data;
+  }
+
+  /** Submit a hash-bound, content-free inspection manifest. */
+  async submitLocalFileInspection(requestId, token, manifest) {
+    const data = await this._post(
+      `/v1/local-file-requests/${encodeURIComponent(requestId)}/inspection`,
+      {
+        classification: manifest.classification,
+        sensitivity_reasons: manifest.sensitivityReasons || [],
+        sha256: manifest.sha256,
+        size: manifest.size,
+        filename: manifest.filename,
+        content_type: manifest.contentType,
+      },
+      this._wsHeaders(token),
+    );
+    return data.data || data;
+  }
+
+  /** Upload exactly the bytes previously bound to an inspection manifest. */
+  async uploadLocalFileContent(requestId, token, upload) {
+    const data = await this._post(
+      `/v1/local-file-requests/${encodeURIComponent(requestId)}/content`,
+      upload,
+      this._wsHeaders(token),
+      120000,
+    );
     return data.data || data;
   }
 

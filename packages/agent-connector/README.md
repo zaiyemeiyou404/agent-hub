@@ -59,6 +59,32 @@ agent-connector device status
 # Connect an agent to a paired workspace
 agent-connector connect my-agent --workspace <slug>
 
+### Authorize local files for cross-device requests
+
+The connector never exposes the whole device filesystem. Create
+`~/.openagents/local-file-roots.json` and explicitly bind each named root to
+the agents allowed to serve files from it:
+
+```json
+{
+  "roots": [
+    {
+      "id": "documents",
+      "path": "/home/alice/Documents",
+      "agentIds": ["laptop-agent"]
+    }
+  ]
+}
+```
+
+Requests use the root `id` plus a relative path. Absolute paths, `..`, symbolic
+links, files outside the real root, unsupported protocol versions, files over
+50 MB, and requests for an unlisted agent are rejected. The connector first
+creates an immutable private snapshot and computes its SHA-256. Sensitive,
+encrypted, binary, unknown, or unclassifiable files wait for the device owner's
+approval before the snapshot can be uploaded. Override the config location with
+`OPENAGENTS_LOCAL_FILE_ROOTS_FILE` when the launcher runs under a managed account.
+
 # Stop
 agent-connector down
 ```

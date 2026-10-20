@@ -20,6 +20,7 @@ itself.
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import BackgroundTasks, APIRouter, Depends, Header, Path, Query
@@ -132,7 +133,7 @@ def create_approval(
     if err:
         return err
     kind = (body.kind or "other").strip().lower()
-    if kind not in svc.ALL_KINDS:
+    if kind not in svc.ALL_KINDS or kind == "local_file_access":
         return json_response(ResponseCode.BAD_REQUEST, "Unsupported approval kind")
     action = body.action
     if not action or not action.strip():
@@ -249,6 +250,17 @@ def _resolve(approval_id: str, body: ResolveApprovalRequest, approve: bool, db, 
             ResponseCode.FORBIDDEN,
             "Sign in as a workspace member to resolve approvals",
         )
+    if a.expires_at is not None:
+        expires_at = a.expires_at.replace(tzinfo=a.expires_at.tzinfo or timezone.utc)
+        if datetime.now(timezone.utc) >= expires_at:
+            a.status = svc.STATUS_EXPIRED
+            a.resolved_by = "system"
+            a.resolved_at = datetime.now(timezone.utc)
+            if a.kind == "local_file_access":
+                from app.routers.local_file_requests import resolve_local_file_approval
+                resolve_local_file_approval(db, a)
+            db.commit()
+            return json_response(ResponseCode.GONE, "Approval expired")
     if not svc.can_resolve(a, actor_id, role):
         if (a.policy_requirements or {}).get("members"):
             msg = "Only the reviewers required by the policy may resolve this request"

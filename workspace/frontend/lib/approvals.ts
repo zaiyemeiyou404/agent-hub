@@ -116,6 +116,7 @@ export function approvalFromMetadata(metadata: Record<string, unknown> | undefin
     note: (raw.note as string) ?? null,
     requestEventId: (raw.request_event_id as string) ?? null,
     resolutionEventId: (raw.resolution_event_id as string) ?? null,
+    expiresAt: (raw.expires_at as string) ?? null,
     createdAt: (raw.created_at as string) ?? null,
   };
 }

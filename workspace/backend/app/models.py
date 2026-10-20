@@ -512,6 +512,9 @@ class Node(Base):
     # its immediate subfolders, and roots/drives, refreshed each heartbeat, e.g.
     # {"home": "C:\\Users\\me", "dirs": ["projects"], "roots": ["C:\\", "D:\\"]}.
     fs = Column(JSONB, default=dict)
+    # Versioned device-side protocols this connector enforces. Unknown or
+    # missing capabilities are never treated as compatible.
+    capabilities = Column(JSONB, nullable=False, default=list, server_default=text("'[]'"))
     created_at = Column(DateTime(timezone=True), default=_now, server_default=text("NOW()"))
 
     workspace = relationship("Workspace", back_populates="nodes")
@@ -568,6 +571,54 @@ class NodeCommand(Base):
 
     __table_args__ = (
         Index("idx_node_commands_node_status", "node_id", "status"),
+    )
+
+
+class LocalFileRequest(Base):
+    """A typed, auditable request for one file held by another device.
+
+    File bytes never travel in node-command results. The command queue only
+    asks the recipient connector to inspect or release an immutable snapshot;
+    the dedicated local-file endpoints own approval and upload state.
+    """
+    __tablename__ = "local_file_requests"
+
+    id = Column(Text, primary_key=True, default=_uuid)
+    workspace_id = Column(UUID(as_uuid=False), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    idempotency_key = Column(Text, nullable=False)
+    requester_agent_id = Column(Text, nullable=False)
+    requester_device_id = Column(UUID(as_uuid=False), ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)
+    requester_device_name = Column(Text, nullable=False)
+    recipient_agent_id = Column(Text, nullable=False)
+    recipient_device_id = Column(UUID(as_uuid=False), ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)
+    recipient_device_name = Column(Text, nullable=False)
+    channel_name = Column(Text, nullable=False)
+    root_id = Column(Text, nullable=False)
+    relative_path = Column(Text, nullable=False)
+    request_content_redacted = Column(Text, nullable=False)
+    status = Column(Text, nullable=False, default="queued_inspection", server_default=text("'queued_inspection'"))
+    sensitivity_reasons = Column(JSONB, nullable=False, default=list, server_default=text("'[]'"))
+    sensitivity_stage = Column(Text, nullable=True)
+    content_sha256 = Column(Text, nullable=True)
+    content_size = Column(Integer, nullable=True)
+    content_type = Column(Text, nullable=True)
+    filename = Column(Text, nullable=True)
+    approval_id = Column(Text, ForeignKey("approvals.id", ondelete="SET NULL"), nullable=True, unique=True)
+    current_command_id = Column(UUID(as_uuid=False), ForeignKey("node_commands.id", ondelete="SET NULL"), nullable=True)
+    file_id = Column(Text, ForeignKey("files.id", ondelete="SET NULL"), nullable=True, unique=True)
+    error_code = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=_now, server_default=text("NOW()"))
+    updated_at = Column(DateTime(timezone=True), default=_now, onupdate=_now, server_default=text("NOW()"))
+
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "requester_agent_id", "requester_device_id", "idempotency_key",
+            name="uq_local_file_request_idempotency",
+        ),
+        Index("idx_local_file_requests_requester", "workspace_id", "requester_agent_id", "created_at"),
+        Index("idx_local_file_requests_recipient_status", "recipient_device_id", "status"),
     )
 
 

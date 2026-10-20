@@ -60,6 +60,7 @@ KIND_LABELS = {
     "repo_write": "Open pull requests or push branches",
     "data_delete": "Delete data",
     "shell": "Run commands with side effects",
+    "local_file_access": "Transfer a sensitive local file",
     "other": "Anything else the agent is unsure of",
 }
 KINDS = tuple(KIND_LABELS)
@@ -453,6 +454,8 @@ def create_request(
     assignee_email: Optional[str] = None,
     requester_email: Optional[str] = None,
     expires_at: Optional[datetime] = None,
+    force_pending: bool = False,
+    policy_requirements_extra: Optional[dict] = None,
 ) -> ApprovalRequest:
     """File an approval request, apply policy, post it into the thread.
 
@@ -471,9 +474,14 @@ def create_request(
     requester_email = _norm_email(requester_email)
 
     policy_note = None
-    requirements = {}
-    rules = effective_rules(db, ws_id, channel_name)
-    policy, policy_note = evaluate_policy(rules, kind, action, details, requirements=requirements)
+    requirements = dict(policy_requirements_extra or {})
+    if force_pending:
+        policy = POLICY_ANY
+        if assignee:
+            requirements.update(members=[assignee], approved_by=[])
+    else:
+        rules = effective_rules(db, ws_id, channel_name)
+        policy, policy_note = evaluate_policy(rules, kind, action, details, requirements=requirements)
     if requirements.get("members"):
         assignee = requirements["members"][0] if len(requirements["members"]) == 1 else None
 
@@ -492,11 +500,11 @@ def create_request(
         status=STATUS_PENDING,
         note=policy_note,
     )
-    if policy == POLICY_ALLOW:
+    if not force_pending and policy == POLICY_ALLOW:
         a.status = STATUS_APPROVED
         a.resolved_by = "policy"
         a.resolved_at = _now()
-    elif policy == POLICY_BLOCK:
+    elif not force_pending and policy == POLICY_BLOCK:
         a.status = STATUS_REJECTED
         a.resolved_by = "policy"
         a.resolved_at = _now()
@@ -601,6 +609,11 @@ def resolve(
     approval.resolved_at = _now()
     approval.note = (note or "").strip() or None
     db.flush()
+
+    if approval.kind == "local_file_access":
+        from app.routers.local_file_requests import resolve_local_file_approval
+        resolve_local_file_approval(db, approval)
+        return approval
 
     if approval.kind in ("agent_sharing_request", "thread_agent_access_request"):
         from app.services.agent_sharing_requests import resolve_request

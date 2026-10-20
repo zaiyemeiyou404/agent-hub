@@ -15,6 +15,12 @@ const { supportsCliModels } = require('./cli-models');
 const { AUTH_MODE_KEY, isCliLogin, modelKeys, stripForCliLogin, typeEnvFor } = require('./env');
 const { getEnhancedEnv, whichBinary, IS_WINDOWS, defaultAgentWorkdir } = require('./paths');
 const { LogWriter } = require('./log-writer');
+const {
+  inspectAndSnapshot,
+  loadAuthorizedRoots,
+  loadSnapshot,
+  removeSnapshot,
+} = require('./local-file-transfer');
 
 // A signed-in agent's model list is asked for again after this long. What a
 // CLI is offered changes when the CLI is upgraded (a vendor holds new models
@@ -325,7 +331,12 @@ class Daemon {
     if (!pairings.length) return;  // no node connected
     // deviceInfo, not gatherDeviceInfo: the heartbeat sends no device key, and
     // must never be the thing that writes node.json.
-    const info = { ...nodeCfg.deviceInfo(), runtimes: this._runtimes || [], fs: this._buildFs() };
+    const info = {
+      ...nodeCfg.deviceInfo(),
+      runtimes: this._runtimes || [],
+      fs: this._buildFs(),
+      capabilities: ['local_file_request.v1'],
+    };
     await Promise.all(pairings.map((p) => this._nodeHeartbeatOne(nodeCfg, p, info)));
   }
 
@@ -577,7 +588,13 @@ class Daemon {
         .map((d) => d.name)
         .sort((a, b) => a.localeCompare(b))
         .slice(0, 100);
-      return { home, dirs, roots: filesystemRoots() };
+      let localFileRoots = [];
+      try {
+        localFileRoots = loadAuthorizedRoots().map((root) => ({ id: root.id, agentIds: root.agentIds }));
+      } catch {
+        // Invalid authorization config is fail-closed: advertise no roots.
+      }
+      return { home, dirs, roots: filesystemRoots(), localFileRoots };
     } catch {
       return {};
     }
@@ -712,15 +729,19 @@ class Daemon {
 async _runNodeCommand(n, cmd) {
     const action = cmd.action;
     const args = cmd.args || {};
-    const name = (args.name || '').trim();
+    const name = (args.name || args.recipientAgentId || '').trim();
     let ok = false;
     let message = '';
     let data = null;
+    let dedicatedResult = false;
     // SECURITY: a workspace may only act on agents bound to it. Reject commands
     // that target an existing agent connected to a different workspace, so a
     // newly-paired workspace can't start/stop/remove/reconfigure agents that
     // belong to another one (they surface in no roster of ours either).
-    const AGENT_SCOPED = new Set(['start_agent', 'stop_agent', 'remove_agent', 'configure_agent']);
+    const AGENT_SCOPED = new Set([
+      'start_agent', 'stop_agent', 'remove_agent', 'configure_agent',
+      'local_file_inspect', 'local_file_release',
+    ]);
     try {
       if (AGENT_SCOPED.has(action)) {
         const existing = this.config.getAgent(name);
@@ -844,6 +865,61 @@ async _runNodeCommand(n, cmd) {
         ok = listed.models.length > 0;
         message = ok ? `Listed ${listed.models.length} model(s)` : listed.error;
         data = { models: listed.models };
+      } else if (action === 'local_file_inspect') {
+        if (args.protocolVersion !== 1) throw new Error('Unsupported local-file protocol version');
+        if (!args.requestId || !args.recipientAgentId || !args.rootId || !args.relativePath || !args.expiresAt) {
+          throw new Error('Incomplete local-file inspection command');
+        }
+        if (!Number.isFinite(Date.parse(args.expiresAt)) || Date.parse(args.expiresAt) <= Date.now()) {
+          throw new Error('Local-file request expired');
+        }
+        const manifest = inspectAndSnapshot({
+          requestId: args.requestId,
+          recipientAgentId: args.recipientAgentId,
+          rootId: args.rootId,
+          relativePath: args.relativePath,
+          roots: this._localFileRoots || loadAuthorizedRoots(),
+          snapshotDir: this._localFileSnapshotDir,
+        });
+        await this._nodeClientFor(n).submitLocalFileInspection(args.requestId, n.token, manifest);
+        dedicatedResult = true;
+        ok = true;
+        message = 'Local-file inspection submitted';
+      } else if (action === 'local_file_release') {
+        if (args.protocolVersion !== 1) throw new Error('Unsupported local-file protocol version');
+        const releaseAuthorization = args.authorization;
+        const validAuthorization = releaseAuthorization === 'automatic_safe' || releaseAuthorization === 'human_approval';
+        if (!args.requestId || !args.recipientAgentId || !args.rootId || !args.relativePath || !validAuthorization || !args.approvedContentSha256 || !args.expiresAt) {
+          throw new Error('Incomplete local-file release command');
+        }
+        if (releaseAuthorization === 'human_approval' && !args.approvalId) {
+          throw new Error('Human-approved release is missing its approval id');
+        }
+        if (!Number.isFinite(Date.parse(args.expiresAt)) || Date.parse(args.expiresAt) <= Date.now()) {
+          throw new Error('Local-file approval expired');
+        }
+        const manifest = loadSnapshot(args.requestId, this._localFileSnapshotDir);
+        if (
+          manifest.protocolVersion !== 1 ||
+          manifest.recipientAgentId !== args.recipientAgentId ||
+          manifest.rootId !== args.rootId ||
+          manifest.relativePath !== args.relativePath ||
+          manifest.sha256 !== args.approvedContentSha256
+        ) {
+          throw new Error('Approved manifest does not match the immutable snapshot');
+        }
+        const bytes = fs.readFileSync(manifest.snapshotPath);
+        await this._nodeClientFor(n).uploadLocalFileContent(args.requestId, n.token, {
+          content_base64: bytes.toString('base64'),
+          sha256: manifest.sha256,
+          size: manifest.size,
+          filename: manifest.filename,
+          content_type: manifest.contentType,
+        });
+        removeSnapshot(args.requestId, this._localFileSnapshotDir);
+        dedicatedResult = true;
+        ok = true;
+        message = 'Approved local-file snapshot uploaded';
       } else if (action === 'list_dir') {
         data = this._listDir(args.path);
         ok = true;
@@ -855,6 +931,7 @@ async _runNodeCommand(n, cmd) {
       ok = false;
       message = e.message || String(e);
     }
+    if (dedicatedResult) return;
     try {
       // Report back to the workspace that issued the command — with several
       // pairings live, the result must not go out over another one's client.

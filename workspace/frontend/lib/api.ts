@@ -1927,6 +1927,7 @@ class WorkspaceApi {
       note: (a.note as string) ?? null,
       requestEventId: (a.request_event_id as string) ?? null,
       resolutionEventId: (a.resolution_event_id as string) ?? null,
+      expiresAt: (a.expires_at as string) ?? null,
       createdAt: (a.created_at as string) ?? null,
     };
   }

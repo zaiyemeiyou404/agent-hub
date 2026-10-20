@@ -53,6 +53,26 @@ describe('approvalFromMetadata', () => {
     });
   });
 
+  it('preserves the redacted local-file approval snapshot and expiry', () => {
+    const snapshot = {
+      request_id: 'req-1', requester_agent_id: 'builder', requester_device_id: 'device-a',
+      requester_device_name: 'Build Server', recipient_agent_id: 'desktop', recipient_device_id: 'device-b',
+      recipient_device_name: 'Alice Laptop', request_content_redacted: 'Need [REDACTED]', root_id: 'projects',
+      relative_path: 'deploy/config.txt', classification: 'sensitive' as const, filename: 'config.txt',
+      content_type: 'text/plain', size: 42, sha256: 'a'.repeat(64),
+      sensitivity_reasons: [{ code: 'credential_pattern', description: 'Credential-like content was detected' }],
+      policy_version: 1, expires_at: '2026-10-20T12:00:00Z',
+    };
+    const approval = approvalFromMetadata({ approval: {
+      id: 'a2', channel_name: 'ops', requested_by: 'builder', kind: 'local_file_access',
+      action: 'Transfer config.txt', required_role: 'owner', status: 'pending',
+      expires_at: snapshot.expires_at,
+      policy_requirements: { members: [], approved_by: [], role_required: 'owner', role_approved: false, local_file_request: snapshot },
+    } });
+    expect(approval?.expiresAt).toBe(snapshot.expires_at);
+    expect(approval?.policyRequirements?.local_file_request).toEqual(snapshot);
+  });
+
   it('returns null when the message carries no approval', () => {
     expect(approvalFromMetadata({})).toBeNull();
     expect(approvalFromMetadata(undefined)).toBeNull();

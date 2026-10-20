@@ -588,7 +588,7 @@ export interface Workflow {
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired';
 export type ApprovalKind =
-  | 'deploy' | 'spend' | 'external_send' | 'repo_read' | 'repo_write' | 'data_delete' | 'shell' | 'other';
+  | 'deploy' | 'spend' | 'external_send' | 'repo_read' | 'repo_write' | 'data_delete' | 'shell' | 'local_file_access' | 'other';
 /** Who may resolve a paused request. `any` = any human member (not viewers). */
 export type ApprovalRequiredRole = 'any' | 'admin' | 'owner';
 /** Card class of a request (v1.1 escalation rides on the approvals table). */
@@ -601,6 +601,28 @@ export interface PolicyRequirements {
   approved_by: string[];
   role_required: ApprovalRequiredRole | null;
   role_approved: boolean;
+  local_file_request?: LocalFileApprovalSnapshot;
+}
+
+export interface LocalFileApprovalSnapshot {
+  request_id: string;
+  requester_agent_id: string;
+  requester_device_id: string;
+  requester_device_name: string;
+  recipient_agent_id: string;
+  recipient_device_id: string;
+  recipient_device_name: string;
+  request_content_redacted: string;
+  root_id: string;
+  relative_path: string;
+  classification: 'sensitive' | 'uncertain';
+  filename: string;
+  content_type: string;
+  size: number;
+  sha256: string;
+  sensitivity_reasons: { code: string; description: string }[];
+  policy_version: number;
+  expires_at: string;
 }
 
 export interface ApprovalRequest {
@@ -629,6 +651,7 @@ export interface ApprovalRequest {
   note: string | null;
   requestEventId: string | null;
   resolutionEventId: string | null;
+  expiresAt: string | null;
   createdAt: string | null;
 }
 

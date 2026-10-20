@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 from app.access import repeats_machine_token, resolve_current_user, resolve_user_role, role_at_least, verify_workspace_access
 from app.config import config
 from app.database import get_db
-from app.models import Node, NodeCommand, NodePairingCode, Workspace
+from app.models import LocalFileRequest, Node, NodeCommand, NodePairingCode, Workspace
 from app.response import ResponseCode, json_response, success_response
 from app.routers.network import _workspace_filter
 
@@ -142,6 +142,7 @@ def _format_node(node: Node, now: datetime, owner_email: Optional[str] = None) -
         "agents": node.agents or [],
         "runtimes": node.runtimes or [],
         "fs": node.fs or {},
+        "capabilities": node.capabilities or [],
         "lastHeartbeatAt": node.last_heartbeat.isoformat() if node.last_heartbeat else None,
         "createdAt": node.created_at.isoformat() if node.created_at else None,
     }
@@ -197,6 +198,7 @@ class NodeHeartbeatRequest(BaseModel):
     agents: Optional[list] = None       # current roster [{name, type, status}]
     runtimes: Optional[list] = None     # per-type detection [{type, installed, ready, ...}]
     fs: Optional[dict] = None           # {home, dirs:[...], roots:[...]} for the working-dir picker
+    capabilities: Optional[list[str]] = None
 
 
 class EnqueueCommandRequest(BaseModel):
@@ -327,6 +329,8 @@ def node_heartbeat(
         node.runtimes = body.runtimes
     if body.fs is not None:
         node.fs = body.fs
+    if body.capabilities is not None:
+        node.capabilities = sorted(set(str(value).strip() for value in body.capabilities if str(value).strip()))
 
     # Deliver any queued remote commands on this heartbeat (the node isn't
     # directly reachable, so the heartbeat is our push channel). Mark them
@@ -573,10 +577,23 @@ def post_command_result(
     if not _machine_token_ok(x_workspace_token, workspace, node):
         return json_response(ResponseCode.UNAUTHORIZED, "Invalid workspace token")
 
+    command_args = cmd.command or {}
+    if cmd.action in ("local_file_inspect", "local_file_release"):
+        # Protocol-private command results never persist daemon-provided paths,
+        # content snippets, or other device-local diagnostics.
+        safe_message = "Local-file command completed" if body.ok else "Local-file command rejected"
+        cmd.result = {"ok": body.ok, "message": safe_message, "data": None}
+        if not body.ok and command_args.get("requestId"):
+            request = db.get(LocalFileRequest, command_args["requestId"])
+            if request is not None and request.current_command_id == cmd.id:
+                request.status = "failed"
+                request.error_code = "connector_rejected"
+                request.error_message = "Recipient device rejected the local-file request"
+    else:
+        cmd.result = {"ok": body.ok, "message": body.message, "data": body.data}
     cmd.status = "done" if body.ok else "error"
-    cmd.result = {"ok": body.ok, "message": body.message, "data": body.data}
     # Scrub the stored args (may hold an API key) now that we're done with them.
-    cmd.command = {"name": (cmd.command or {}).get("name")} if cmd.command else {}
+    cmd.command = {"name": command_args.get("name")} if command_args.get("name") else {}
     cmd.finished_at = _now()
     db.commit()
     return success_response(_format_command(cmd))

@@ -24,6 +24,7 @@ const KIND_KEYS: Record<string, MessageKey> = {
   repo_write: 'approvals.kinds.repo_write',
   data_delete: 'approvals.kinds.data_delete',
   shell: 'approvals.kinds.shell',
+  local_file_access: 'approvals.kinds.local_file_access',
   other: 'approvals.kinds.generic',
 };
 
@@ -142,6 +143,7 @@ export default function ApprovalsSettingsPage() {
             <p className="px-4 py-3 text-sm text-muted-foreground">{t('approvals.nonePending')}</p>
           ) : pending.map((a) => {
             const allowed = canActOnApproval(me, a, workspace.requireLogin);
+            const fileRequest = a.policyRequirements?.local_file_request;
             return (
               <div key={a.id} className="flex flex-wrap items-start gap-3 px-4 py-3">
                 <Lock className="mt-0.5 size-4 shrink-0 text-amber-600" />
@@ -153,7 +155,19 @@ export default function ApprovalsSettingsPage() {
                       {a.createdAt && <> · {timeAgoShort(a.createdAt)}</>}
                     </span>
                   </div>
-                  {a.details && (
+                  {fileRequest ? (
+                    <div className="mt-2 grid gap-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs dark:border-amber-900/50 dark:bg-amber-950/20 sm:grid-cols-2">
+                      <div><span className="text-muted-foreground">{t('approvals.localFile.requester')}</span><p className="font-medium">{fileRequest.requester_agent_id}</p><p className="break-all font-mono text-[11px]">{fileRequest.requester_device_name} · {fileRequest.requester_device_id}</p></div>
+                      <div><span className="text-muted-foreground">{t('approvals.localFile.recipient')}</span><p className="font-medium">{fileRequest.recipient_agent_id}</p><p className="break-all font-mono text-[11px]">{fileRequest.recipient_device_name} · {fileRequest.recipient_device_id}</p></div>
+                      <div className="sm:col-span-2"><span className="text-muted-foreground">{t('approvals.localFile.request')}</span><p className="whitespace-pre-wrap break-words">{fileRequest.request_content_redacted}</p></div>
+                      <div className="sm:col-span-2"><span className="text-muted-foreground">{t('approvals.localFile.path')}</span><p className="break-all font-mono text-[11px]">{fileRequest.root_id}/{fileRequest.relative_path}</p></div>
+                      <div><span className="text-muted-foreground">{t('approvals.localFile.classification')}</span><p className="font-medium">{t(`approvals.localFile.${fileRequest.classification}` as MessageKey)}</p></div>
+                      <div><span className="text-muted-foreground">{t('approvals.localFile.manifest')}</span><p className="break-all font-mono text-[11px]">{fileRequest.filename} · {fileRequest.content_type} · {fileRequest.size.toLocaleString()} {t('approvals.localFile.bytes')}</p></div>
+                      <div><span className="text-muted-foreground">{t('approvals.localFile.expires')}</span><p>{new Date(fileRequest.expires_at).toLocaleString()}</p></div>
+                      <div className="sm:col-span-2"><span className="text-muted-foreground">SHA-256</span><p className="break-all font-mono text-[11px]">{fileRequest.sha256}</p></div>
+                      <div className="sm:col-span-2"><span className="text-muted-foreground">{t('approvals.localFile.reasons')}</span><ul className="list-disc pl-4">{fileRequest.sensitivity_reasons.map((reason) => <li key={`${reason.code}:${reason.description}`}>{reason.description} <span className="font-mono text-[10px] text-muted-foreground">({reason.code})</span></li>)}</ul></div>
+                    </div>
+                  ) : a.details && (
                     <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded bg-muted px-2 py-1 font-mono text-[11px]">
                       {a.details}
                     </pre>
