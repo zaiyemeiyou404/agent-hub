@@ -1,10 +1,11 @@
 # AgentHub 移动端与桌面端产品化项目计划书
 
 > **日期：** 2026-10-20
-> **版本：** v2.0（可行性与实施基线）
+> **版本：** v2.1（仓库复核与实施基线）
 > **项目代号：** AgentHub Client（正式品牌名待定）
 > **实施原则：** 在现有 AgentHub/OpenAgents 代码上产品化，不重写已经可用的 Workspace、Connector 和桌面 Launcher。
 > **文档状态：** 可用于立项评审、迭代排期、预算估算和发布门禁；不是法律意见或最终商店审核承诺。
+> **权威来源：** GitHub 仓库中的本文件；计划变更通过 feature 分支和 Pull Request 审核。Linear 当前暂停维护，不作为本版计划的权威来源。
 
 ## 一、项目摘要
 
@@ -1039,32 +1040,65 @@ release-evidence/<version>/
 
 ---
 
-## 二十五、本计划的 Linear 落地与维护
+## 二十五、本计划的 GitHub 落地与维护
 
-### 25.1 Linear 结构
+### 25.1 权威位置
 
-- **项目：** `AgentHub 客户端产品化`；
-- **项目文档：** 保存本计划书完整 Markdown，作为范围、架构和门禁基线；
-- **里程碑：** M0 产品验证、M1 身份安全、M2 桌面产品化、M3 移动 MVP、M4 发布；
-- **工作包：** WP-01～WP-10，每项绑定负责人、优先级、截止日期和里程碑；
-- **状态：** 项目初始为 Planned，工作包初始为 Todo；只有具备验收证据时才进入 Done。
+- **仓库：** `zaiyemeiyou404/agent-hub`；
+- **计划书：** `docs/plans/2026-10-20-agenthub-mobile-desktop-product-plan.md`；
+- **交付方式：** 所有计划修改只进入 feature 分支，由 Pull Request 审核后再由项目负责人决定是否合并；
+- **Linear 状态：** 已有项目和顶层工作包暂时保留，但停止新增、拆分和更新；本文件是当前唯一权威计划基线；
+- **完成标准：** 代码、测试、构建、部署或审查证据齐全后，相关工作项才可视为完成。
 
 ### 25.2 维护流程
 
-1. 产品范围、架构、身份模型或预算基线变化时，先更新项目文档并提升版本；
-2. 把已批准的变化拆入对应 WP issue，不创建与既有工作包重复的大任务；
-3. 每周更新项目状态、里程碑风险和工作包进度；
-4. 每次 M0/M1/RC/GA 门禁后，在 Linear 记录结论、验证证据和未接受风险；
-5. Issue 完成时附测试、构建、部署或审查证据，不能仅凭“代码已写”关闭；
-6. 延期任务必须更新截止日期并说明对关键路径和发布目标的影响。
+1. 产品范围、架构、身份模型、预算或发布门禁变化时，先修改本文件并提升版本；
+2. 每次修改在 commit/PR 中说明依据、影响、验证命令和未解决风险；
+3. 代码实施仍按 WP-01～WP-10 归类，不重复创建同义顶层工作包；
+4. M0、M1、RC、GA 门禁必须把测试报告、构建制品或演练记录保存到仓库约定的证据目录；
+5. 计划中的“当前已具备”“需要改造”“尚未验证”必须随代码变化同步更新；
+6. Linear 只有在项目负责人明确恢复后才重新作为执行跟踪工具。
 
 ### 25.3 信息安全规则
 
-- Linear 文档和 Issue 不写入真实 API Key、Workspace Token、设备 Token、配对码、密码或连接串；
-- 日志、截图和评论中的敏感值统一写作 `[REDACTED]`；
-- 绝对路径、文件正文和安全匹配片段仅在必要且已脱敏时记录；
-- 商业、许可证和安全结论应保留来源或审查责任人；
-- “当前已具备”“计划实现”“尚未验证”必须明确区分。
+- GitHub 文档、Issue、PR、日志和截图不写入真实 API Key、Workspace Token、Node Token、设备 Token、配对码、密码或连接串；
+- 所有敏感值统一写作 `[REDACTED]`；
+- 不提交文件正文、凭据值、安全匹配片段或不必要的原始绝对路径；
+- 商业、许可证和安全结论保留来源、验证日期和审查责任人；
+- Release Evidence 只保存脱敏证据，不以“调试需要”为由降低泄漏门禁。
+
+---
+
+## 二十六、2026-10-20 仓库复核结果
+
+### 26.1 已独立复跑的验证
+
+| 范围 | 命令/方式 | 结果 | 结论 |
+|---|---|---:|---|
+| Web Workspace 前端 | `cd workspace/frontend && npm test -- --run` | 105 个测试文件、503 个测试全部通过 | 当前 Web 回归基线可用 |
+| 安全文件、独立 Node Token、短期 Workspace Session | `pytest -q test_local_file_requests.py test_node_tokens.py test_workspace_session.py` | 77 通过 | 已有安全协议主干真实存在，但不代表产品化缺口已完成 |
+| Node API | `pytest -q workspace/backend/tests/test_nodes.py` | 24 通过、2 失败 | 测试仍用共享 Workspace Token 模拟 Node，与独立 Node Token 约束冲突 |
+| 推送、设备与通知 | `pytest -q test_push.py test_fcm_client.py test_devices.py test_notify.py` | 82 通过、1 失败 | `kind=help` 审批测试与当前允许类型发生漂移 |
+| Agent Connector | `cd packages/agent-connector && npm test` | 2109 通过、1 失败、9 跳过 | OpenCode 二进制发现测试被宿主 PATH 污染，测试环境不够隔离 |
+| Electron Launcher 依赖安装 | `cd packages/launcher && npm ci --ignore-scripts --no-audit --no-fund --dry-run` | 失败 | package 与 lockfile 不一致，当前桌面构建不可复现 |
+
+### 26.2 已确认的发布阻断项
+
+1. **Connector 版本漂移：** Connector 源码为 `0.2.196`，Launcher 声明 `0.2.194`，Launcher lockfile 为 `0.2.189`；必须先统一版本、lockfile 和安装包来源。
+2. **客户端设备会话缺失：** 尚无 `DeviceSession`、refresh token family、rotation、重放检测和单设备客户端撤销。
+3. **Node Token 权限过宽：** 服务端仍保存明文 Node Token，且机器 Token 可进入通用 Workspace 鉴权入口；必须改为 hash 存储和端点级 scope。
+4. **桌面凭据不安全：** `safeStorage` 默认关闭并可能静默回退明文；Workspace、SSE、文件和分享链路仍有 URL Token 路径。
+5. **移动工程不存在：** 仓库尚无 Capacitor、Android/iOS 原生工程和移动 CI，不能描述为“已有移动基础”。
+6. **推送隐私不足：** 服务端 FCM 基础存在，但当前通知可能携带锁屏可见正文；客户端注册、点击、深链和到达回执闭环不存在。
+7. **安全文件仍需硬化：** 缺少并发 upload 行锁、解码前请求体上限、失败/过期快照 GC，以及完整公网证据包和泄漏扫描。
+8. **发布门禁未全绿：** 当前存在 4 个已复现测试/安装阻断点，任何正式 Beta 或 stable 发布都必须先归零或形成有期限、有责任人的风险接受记录。
+
+### 26.3 当前可信结论
+
+- **已具备：** Web Workspace、Electron Launcher 主框架、Connector、Node 配对、独立 Node Token、安全文件协议主干、FCM 服务端发送基础。
+- **需要改造：** 身份与设备会话、Node Token scope/hash、桌面安全存储、URL Token、版本锁定、推送隐私、文件协议并发和生命周期。
+- **尚未验证：** Capacitor 真机闭环、Android/iOS CI、桌面正式签名与公证、客户端推送到达/点击、Windows+Android 公网端到端 Beta、完整 SBOM 与第三方法律复核。
+- **项目结论：** 仍为“有条件 Go”，但 M1 身份、安全和可复现构建未通过前，不得把桌面或移动包认定为可发布产品。
 
 ---
 
