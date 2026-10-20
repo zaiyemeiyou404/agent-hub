@@ -2397,15 +2397,26 @@ def create_pairing_code(
     authorization: Optional[str] = Header(None),
 ):
     """Generate a short-lived, single-use code to connect a node (device) to this
-    workspace. Requires a signed-in member, who owns the connection. The
-    launcher redeems it at POST /v1/nodes/redeem."""
+    workspace. Requires a signed-in member, who owns the connection. Legacy
+    self-hosted workspaces without login may use their workspace token; the
+    token holder is recorded as the device owner. The launcher redeems it at
+    POST /v1/nodes/redeem."""
     workspace = db.execute(
         select(Workspace).where(_workspace_filter(workspace_id))
     ).scalar_one_or_none()
     if not workspace or workspace.status == "deleted":
         return json_response(ResponseCode.NOT_FOUND, "Workspace not found")
     creator = resolve_current_user(db, authorization)
-    if not creator or not verify_workspace_access(workspace, None, authorization, db=db, min_role="member"):
+    identity_owner = bool(
+        creator
+        and verify_workspace_access(workspace, None, authorization, db=db, min_role="member")
+    )
+    legacy_token_owner = bool(
+        not workspace.require_login
+        and workspace.password_hash
+        and x_workspace_token == workspace.password_hash
+    )
+    if not identity_owner and not legacy_token_owner:
         return json_response(ResponseCode.FORBIDDEN, "Sign in as a workspace member to connect your device")
 
     from app.models import NodePairingCode
@@ -2414,11 +2425,10 @@ def create_pairing_code(
     code = generate_pairing_code()
     now = datetime.now(timezone.utc)
     expires = now + PAIRING_TTL
-    creator = resolve_current_user(db, authorization)
     db.add(NodePairingCode(
         code=code,
         workspace_id=workspace.id,
-        created_by=creator.email if creator else None,
+        created_by=creator.email if creator is not None and identity_owner else "token",
         expires_at=expires,
     ))
     db.commit()

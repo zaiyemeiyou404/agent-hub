@@ -42,6 +42,23 @@ class TestPairingCode:
         r = client.post(f"/v1/workspaces/{ws['workspaceId']}/pairing-codes")
         assert r.status_code in (401, 403)
 
+    def test_workspace_token_can_pair_in_legacy_no_login_workspace(self, client, db):
+        ws = _make_workspace(client)
+        workspace = db.get(Workspace, ws["workspaceId"])
+        workspace.require_login = False
+        db.commit()
+        r = client.post(
+            f"/v1/workspaces/{ws['workspaceId']}/pairing-codes",
+            headers={"X-Workspace-Token": ws["token"]},
+        )
+        assert r.status_code == 200, r.text
+        redeemed = client.post("/v1/nodes/redeem", json={
+            "code": r.json()["data"]["code"],
+            "node_key": "legacy-self-hosted-device",
+        })
+        assert redeemed.status_code == 200, redeemed.text
+        assert redeemed.json()["data"]["ownerEmail"] == "token"
+
 
 class TestRedeem:
     def test_redeem_registers_node_and_returns_token(self, client):

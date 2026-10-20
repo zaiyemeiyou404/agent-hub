@@ -42,3 +42,5 @@ Deterministic path/name rules cover environment files, SSH/GPG/cloud/Kubernetes 
 ## Compatibility
 
 Older connectors do not advertise `local_file_request.v1` and are rejected with a clear unsupported-capability response. This prevents silent unsafe fallback. Future connectors implement the same typed prepare/classify/release contract.
+
+Legacy self-hosted workspaces with `require_login=false` may use the workspace token as the human owner credential for device pairing and local-file approval. Such devices are recorded with owner `token`; only the workspace token receives the narrow `local_file_access` owner exception. Login-enforced workspaces still require an authenticated member identity.

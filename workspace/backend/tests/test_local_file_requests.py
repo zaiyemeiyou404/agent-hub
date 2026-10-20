@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.models import ApprovalPolicy, ApprovalRequest, FileRecord, LocalFileRequest, NodeCommand
+from app.models import ApprovalPolicy, ApprovalRequest, FileRecord, LocalFileRequest, Node, NodeCommand, Workspace
 from tests.test_visibility import people, no_push
 
 
@@ -294,6 +294,23 @@ class TestLocalFileInspectionAndApproval:
         command = db.get(NodeCommand, stored.current_command_id)
         assert command.action == "local_file_release"
         assert command.command["approvedContentSha256"] == "a" * 64
+
+    def test_legacy_workspace_token_owner_can_approve_sensitive_release(self, client, workspace, db):
+        _, recipient, request = _created_request(client, workspace)
+        workspace_row = db.get(Workspace, workspace["id"])
+        workspace_row.require_login = False
+        node = db.get(Node, recipient["nodeId"])
+        node.owner_email = "token"
+        db.commit()
+        inspected = _inspection(client, recipient, request["id"]).json()["data"]
+        approved = client.post(
+            f"/v1/approvals/{inspected['approval_id']}/approve",
+            headers={"X-Workspace-Token": workspace["token"]},
+            json={"network": workspace["id"]},
+        )
+        assert approved.status_code == 200, approved.text
+        db.expire_all()
+        assert db.get(LocalFileRequest, request["id"]).status == "queued_release"
 
     def test_expired_sensitive_approval_cannot_queue_release(self, client, workspace, db):
         _, recipient, request = _created_request(client, workspace)

@@ -261,7 +261,15 @@ def _resolve(approval_id: str, body: ResolveApprovalRequest, approve: bool, db, 
                 resolve_local_file_approval(db, a)
             db.commit()
             return json_response(ResponseCode.GONE, "Approval expired")
-    if not svc.can_resolve(a, actor_id, role):
+    legacy_local_file_owner = bool(
+        a.kind == "local_file_access"
+        and actor_id == "token"
+        and (a.assignee_email or "").strip().lower() == "token"
+        and role == "owner"
+        and workspace is not None
+        and not workspace.require_login
+    )
+    if not legacy_local_file_owner and not svc.can_resolve(a, actor_id, role):
         if (a.policy_requirements or {}).get("members"):
             msg = "Only the reviewers required by the policy may resolve this request"
         elif a.assignee_email and svc.role_can_resolve(role, a.required_role):
