@@ -10,5 +10,5 @@
 - [x] Add approval/request status UI support with English and Chinese copy.
 - [x] Run targeted tests and confirm RED then GREEN.
 - [x] Run affected backend and connector suites, frontend tests/typecheck/build, and security review. Remaining failures were reproduced on the fixed baseline and are unrelated to this change.
-- [ ] Deploy the feature branch and run the live protocol smoke.
-- [ ] Commit and push only `feat/secure-local-file-requests`.
+- [x] Deploy the feature branch and run the live protocol smoke.
+- [x] Commit and push only `feat/secure-local-file-requests`.
