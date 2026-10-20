@@ -152,6 +152,8 @@ venv.bak/
 
 # mkdocs documentation
 /site
+/.site/
+/docs/.product-plan-site-src/
 
 # mypy
 .mypy_cache/
