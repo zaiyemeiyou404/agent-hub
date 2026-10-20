@@ -885,7 +885,6 @@ Cloudflare / DNS
        ▼
 Caddy（唯一公网入口）
        ├─ /v1/*, /ready, /health → AgentHub Backend
-       ├─ /product-plan/*        → 只读静态计划站
        └─ /*                     → AgentHub Frontend
 
 AgentHub Backend ── PostgreSQL
@@ -1040,41 +1039,32 @@ release-evidence/<version>/
 
 ---
 
-## 二十五、本计划的 Linux 发布与维护
+## 二十五、本计划的 Linear 落地与维护
 
-### 25.1 发布方式
+### 25.1 Linear 结构
 
-- Markdown 源文件保留在仓库 `docs/plans/`；
-- 使用独立 MkDocs Material 配置生成纯静态站点；
-- 输出目录挂载到 Caddy 容器，只读提供；
-- 公网路径为 AgentHub 域名下的 `/product-plan/`；
-- 不运行额外 Python/Node 文档服务，不新增公网端口；
-- 文档不包含 token、密码、连接串、配对码或未脱敏绝对路径。
+- **项目：** `AgentHub 客户端产品化`；
+- **项目文档：** 保存本计划书完整 Markdown，作为范围、架构和门禁基线；
+- **里程碑：** M0 产品验证、M1 身份安全、M2 桌面产品化、M3 移动 MVP、M4 发布；
+- **工作包：** WP-01～WP-10，每项绑定负责人、优先级、截止日期和里程碑；
+- **状态：** 项目初始为 Planned，工作包初始为 Todo；只有具备验收证据时才进入 Done。
 
-### 25.2 更新流程
+### 25.2 维护流程
 
-```bash
-# 1. 修改计划源文件
-# 2. 构建静态站
-./scripts/build-product-plan-site.sh
+1. 产品范围、架构、身份模型或预算基线变化时，先更新项目文档并提升版本；
+2. 把已批准的变化拆入对应 WP issue，不创建与既有工作包重复的大任务；
+3. 每周更新项目状态、里程碑风险和工作包进度；
+4. 每次 M0/M1/RC/GA 门禁后，在 Linear 记录结论、验证证据和未接受风险；
+5. Issue 完成时附测试、构建、部署或审查证据，不能仅凭“代码已写”关闭；
+6. 延期任务必须更新截止日期并说明对关键路径和发布目标的影响。
 
-# 3. 检查链接与敏感信息
-./scripts/verify-product-plan-site.sh
+### 25.3 信息安全规则
 
-# 或一步构建、验证并发布到 Linux 静态目录
-./scripts/deploy-product-plan-site.sh
-
-# 4. 提交到 feature 分支并推送
-# 5. Caddy 直接读取只读静态输出；无需重启业务后端
-```
-
-### 25.3 文档维护规则
-
-- 架构、身份、里程碑或预算基线变化时提升文档版本；
-- “当前已具备”“计划实现”“尚未验证”必须明确区分；
-- 所有外部事实保留官方来源；
-- 每次 M0/M1/RC/GA 门禁后记录结论、证据和未接受风险；
-- 计划中的密钥、Token、设备配对码和密码一律写作 `[REDACTED]`。
+- Linear 文档和 Issue 不写入真实 API Key、Workspace Token、设备 Token、配对码、密码或连接串；
+- 日志、截图和评论中的敏感值统一写作 `[REDACTED]`；
+- 绝对路径、文件正文和安全匹配片段仅在必要且已脱敏时记录；
+- 商业、许可证和安全结论应保留来源或审查责任人；
+- “当前已具备”“计划实现”“尚未验证”必须明确区分。
 
 ---
 
