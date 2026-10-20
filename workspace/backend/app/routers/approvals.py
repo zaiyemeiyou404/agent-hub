@@ -29,6 +29,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.access import resolve_current_user, resolve_user_role
+from app.config import config
 from app.database import get_db
 from app.models import ApprovalRequest, Workspace
 from app.response import ResponseCode, json_response, success_response
@@ -245,6 +246,15 @@ def _resolve(approval_id: str, body: ResolveApprovalRequest, approve: bool, db, 
         return json_response(ResponseCode.BAD_REQUEST, f"Approval is already {a.status}")
 
     actor_id, actor_label, role = _resolve_actor(db, workspace, token, authorization)
+    if (
+        actor_id is None
+        and a.kind == "local_file_access"
+        and config.AUTH_MODE == "workspace_token"
+        and workspace is not None
+        and workspace.password_hash
+        and token == workspace.password_hash
+    ):
+        actor_id, actor_label, role = "token", "Workspace owner", "owner"
     if actor_id is None:
         return json_response(
             ResponseCode.FORBIDDEN,
@@ -267,7 +277,7 @@ def _resolve(approval_id: str, body: ResolveApprovalRequest, approve: bool, db, 
         and (a.assignee_email or "").strip().lower() == "token"
         and role == "owner"
         and workspace is not None
-        and not workspace.require_login
+        and (not workspace.require_login or config.AUTH_MODE == "workspace_token")
     )
     if not legacy_local_file_owner and not svc.can_resolve(a, actor_id, role):
         if (a.policy_requirements or {}).get("members"):
@@ -282,7 +292,7 @@ def _resolve(approval_id: str, body: ResolveApprovalRequest, approve: bool, db, 
         db, workspace, a,
         approve=approve,
         actor_id=actor_id,
-        actor_label=actor_label,
+        actor_label=actor_label or actor_id,
         actor_role=role,
         note=body.note,
     )

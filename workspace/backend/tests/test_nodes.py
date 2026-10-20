@@ -3,6 +3,7 @@
 
 from datetime import datetime, timedelta, timezone
 
+from app.config import config
 from app.models import NodePairingCode, Workspace
 import pytest
 import app.access as access
@@ -42,11 +43,8 @@ class TestPairingCode:
         r = client.post(f"/v1/workspaces/{ws['workspaceId']}/pairing-codes")
         assert r.status_code in (401, 403)
 
-    def test_workspace_token_can_pair_in_legacy_no_login_workspace(self, client, db):
+    def test_workspace_token_can_pair_in_self_hosted_mode(self, client):
         ws = _make_workspace(client)
-        workspace = db.get(Workspace, ws["workspaceId"])
-        workspace.require_login = False
-        db.commit()
         r = client.post(
             f"/v1/workspaces/{ws['workspaceId']}/pairing-codes",
             headers={"X-Workspace-Token": ws["token"]},
@@ -58,6 +56,15 @@ class TestPairingCode:
         })
         assert redeemed.status_code == 200, redeemed.text
         assert redeemed.json()["data"]["ownerEmail"] == "token"
+
+    def test_workspace_token_cannot_pair_in_hosted_login_mode(self, client, monkeypatch):
+        ws = _make_workspace(client)
+        monkeypatch.setattr(config, "AUTH_MODE", "firebase")
+        r = client.post(
+            f"/v1/workspaces/{ws['workspaceId']}/pairing-codes",
+            headers={"X-Workspace-Token": ws["token"]},
+        )
+        assert r.status_code == 403
 
 
 class TestRedeem:

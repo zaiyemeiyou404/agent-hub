@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.models import ApprovalPolicy, ApprovalRequest, FileRecord, LocalFileRequest, Node, NodeCommand, Workspace
+from app.models import ApprovalPolicy, ApprovalRequest, FileRecord, LocalFileRequest, Node, NodeCommand
 from tests.test_visibility import people, no_push
 
 
@@ -297,8 +297,6 @@ class TestLocalFileInspectionAndApproval:
 
     def test_legacy_workspace_token_owner_can_approve_sensitive_release(self, client, workspace, db):
         _, recipient, request = _created_request(client, workspace)
-        workspace_row = db.get(Workspace, workspace["id"])
-        workspace_row.require_login = False
         node = db.get(Node, recipient["nodeId"])
         node.owner_email = "token"
         db.commit()

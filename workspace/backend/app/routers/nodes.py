@@ -244,7 +244,9 @@ def redeem_pairing_code(body: NodeRedeemRequest, db: Session = Depends(get_db)):
 
     owner = (pc.created_by or "").strip().lower()
     from app.services.access_model import workspace_human_roles
-    legacy_token_owner = owner == "token" and not workspace.require_login
+    legacy_token_owner = owner == "token" and (
+        not workspace.require_login or config.AUTH_MODE == "workspace_token"
+    )
     if not legacy_token_owner and (
         not owner or workspace_human_roles(db, workspace).get(owner) not in ("member", "admin", "owner")
     ):

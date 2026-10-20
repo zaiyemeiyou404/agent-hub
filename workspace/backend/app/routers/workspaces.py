@@ -2412,7 +2412,7 @@ def create_pairing_code(
         and verify_workspace_access(workspace, None, authorization, db=db, min_role="member")
     )
     legacy_token_owner = bool(
-        not workspace.require_login
+        (not workspace.require_login or config.AUTH_MODE == "workspace_token")
         and workspace.password_hash
         and x_workspace_token == workspace.password_hash
     )
