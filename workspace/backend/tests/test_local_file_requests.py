@@ -6,8 +6,10 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import select
 
 from app.models import ApprovalPolicy, ApprovalRequest, FileRecord, LocalFileRequest, Node, NodeCommand
+from app.routers.local_file_requests import base64_exceeds_quota
 from tests.test_visibility import people, no_push
 
 
@@ -44,13 +46,13 @@ def _join(client, workspace, connection, agent):
     return response.json()["data"]
 
 
-def _heartbeat(client, connection, agents):
+def _heartbeat(client, connection, agents, capabilities=None):
     response = client.post(
         "/v1/nodes/heartbeat",
         headers={"X-Workspace-Token": connection["token"]},
         json={
             "node_id": connection["nodeId"],
-            "capabilities": ["local_file_request.v1"],
+            "capabilities": capabilities or ["local_file_request.v1"],
             "agents": [{"name": name, "type": "hermes", "status": "running"} for name in agents],
         },
     )
@@ -191,9 +193,9 @@ class TestCreateLocalFileRequest:
         assert stored.error_message == "Recipient device rejected the local-file request"
 
 
-def _created_request(client, workspace):
+def _created_request(client, workspace, idempotency_key="transfer-request-1"):
     requester, recipient = _setup_agents(client, workspace)
-    response = _request(client, workspace, requester)
+    response = _request(client, workspace, requester, idempotency_key=idempotency_key)
     assert response.status_code == 200, response.text
     return requester, recipient, response.json()["data"]
 
@@ -383,3 +385,191 @@ class TestLocalFileUpload:
         second = _upload(client, recipient, request["id"], content)
         assert second.status_code == 200
         assert second.json()["data"]["file_id"] == data["file_id"]
+
+    def test_changed_hash_cannot_reuse_the_existing_approval(self, client, workspace, db):
+        _, recipient, request = _created_request(client, workspace)
+        inspected = _inspection(client, recipient, request["id"]).json()["data"]
+        stored = db.get(LocalFileRequest, request["id"])
+        stored.content_sha256 = "b" * 64
+        db.commit()
+        response = client.post(
+            f"/v1/approvals/{inspected['approval_id']}/approve",
+            headers={"Authorization": "Bearer mia"},
+            json={"network": workspace["id"]},
+        )
+        assert response.status_code == 200, response.text
+        db.expire_all()
+        stored = db.get(LocalFileRequest, request["id"])
+        assert stored.status == "failed"
+        assert stored.error_code == "approval_binding_changed"
+        release = db.execute(
+            select(NodeCommand).where(NodeCommand.action == "local_file_release")
+        ).scalars().all()
+        assert release == []
+
+    def test_encoded_body_over_the_existing_quota_is_rejected(self, client, workspace, monkeypatch):
+        import app.routers.local_file_requests as requests_mod
+
+        monkeypatch.setattr(requests_mod, "MAX_LOCAL_FILE_BYTES", 3)
+        _, recipient, request = _created_request(client, workspace)
+        content = b"safe content"
+        digest = hashlib.sha256(content).hexdigest()
+        assert _inspection(
+            client, recipient, request["id"], classification="safe",
+            sensitivity_reasons=[], sha256=digest, size=len(content),
+        ).status_code == 200
+        response = _upload(client, recipient, request["id"], content)
+        assert response.status_code == 400
+        assert "safe content" not in response.text
+        assert base64_exceeds_quota(base64.b64encode(content).decode("ascii"), 3)
+
+    def test_offline_device_is_not_reported_as_success(self, client, workspace, db):
+        _, recipient, request = _created_request(client, workspace)
+        node = db.get(Node, recipient["nodeId"])
+        node.status = "offline"
+        node.last_heartbeat = datetime.now(timezone.utc) - timedelta(hours=1)
+        db.commit()
+        response = client.get(
+            f"/v1/local-file-requests/{request['id']}",
+            params={"network": workspace["id"]},
+            headers={"X-Workspace-Token": recipient["token"], "X-Agent-Name": "laptop-agent"},
+        )
+        assert response.status_code == 200, response.text
+        data = response.json()["data"]
+        assert data["status"] == "queued_inspection"
+        assert data["execution_status"] == "status_unconfirmed"
+
+    def test_running_transfer_is_not_handed_out_again(self, client, workspace, db):
+        _, recipient, request = _created_request(client, workspace)
+        first = _heartbeat(client, recipient, ["laptop-agent"])
+        assert [item["action"] for item in first["commands"]] == ["local_file_inspect"]
+        second = _heartbeat(client, recipient, ["laptop-agent"])
+        assert second["commands"] == []
+        command = db.get(NodeCommand, first["commands"][0]["commandId"])
+        assert command.status == "running"
+
+    def test_cancel_requires_a_connector_that_can_confirm_it(self, client, workspace, db):
+        requester, recipient, request = _created_request(client, workspace)
+        denied = client.post(
+            f"/v1/local-file-requests/{request['id']}/cancel",
+            headers={"X-Workspace-Token": requester["token"], "X-Agent-Name": "server-agent"},
+        )
+        assert denied.status_code == 409
+        assert "cannot cancel" in denied.text
+        db.expire_all()
+        assert db.get(LocalFileRequest, request["id"]).status == "queued_inspection"
+
+        _heartbeat(client, recipient, ["laptop-agent"], ["local_file_request.v1", "local_file_cancel.v1"])
+        accepted = client.post(
+            f"/v1/local-file-requests/{request['id']}/cancel",
+            headers={"X-Workspace-Token": requester["token"], "X-Agent-Name": "server-agent"},
+        )
+        assert accepted.status_code == 200, accepted.text
+        assert accepted.json()["data"]["execution_status"] == "cancelling"
+        command_id = db.get(LocalFileRequest, request["id"]).current_command_id
+        confirmed = client.post(
+            f"/v1/nodes/commands/{command_id}/result",
+            headers={"X-Workspace-Token": recipient["token"]},
+            json={"ok": True, "message": "Local-file cancel confirmed", "data": None},
+        )
+        assert confirmed.status_code == 200, confirmed.text
+        db.expire_all()
+        stored = db.get(LocalFileRequest, request["id"])
+        assert stored.status == "cancelled"
+        assert stored.error_message is None
+
+    def test_changed_recipient_and_expired_request_cannot_continue(self, client, workspace, db):
+        _, recipient, request = _created_request(client, workspace)
+        inspected = _inspection(client, recipient, request["id"]).json()["data"]
+        stored = db.get(LocalFileRequest, request["id"])
+        stored.recipient_agent_id = "other-agent"
+        db.commit()
+        approved = client.post(
+            f"/v1/approvals/{inspected['approval_id']}/approve",
+            headers={"Authorization": "Bearer mia"},
+            json={"network": workspace["id"]},
+        )
+        assert approved.status_code == 200, approved.text
+        db.expire_all()
+        assert db.get(LocalFileRequest, request["id"]).error_code == "approval_binding_changed"
+
+        _, recipient, request = _created_request(client, workspace, "transfer-request-expired")
+        content = b"safe content"
+        digest = hashlib.sha256(content).hexdigest()
+        assert _inspection(
+            client, recipient, request["id"], classification="safe",
+            sensitivity_reasons=[], sha256=digest, size=len(content),
+        ).status_code == 200
+        stored = db.get(LocalFileRequest, request["id"])
+        stored.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        db.commit()
+        expired = _upload(client, recipient, request["id"], content)
+        assert expired.status_code == 410
+        assert "safe content" not in expired.text
+
+    def test_revoked_device_cannot_upload_or_read_the_private_file(self, client, workspace, db):
+        requester, recipient, request = _created_request(client, workspace)
+        content = b"private transfer"
+        digest = hashlib.sha256(content).hexdigest()
+        assert _inspection(
+            client, recipient, request["id"], classification="safe",
+            sensitivity_reasons=[], sha256=digest, size=len(content),
+        ).status_code == 200
+        node = db.get(Node, recipient["nodeId"])
+        node.token = "rotated-token"
+        db.commit()
+        revoked = _upload(client, recipient, request["id"], content)
+        assert revoked.status_code == 401
+        assert "private transfer" not in revoked.text
+
+        node.token = recipient["token"]
+        db.commit()
+        uploaded = _upload(client, recipient, request["id"], content)
+        assert uploaded.status_code == 200, uploaded.text
+        file_id = uploaded.json()["data"]["file_id"]
+        node.token = "rotated-token"
+        db.commit()
+        bare = client.get(
+            f"/v1/files/{file_id}",
+            headers={"X-Workspace-Token": recipient["token"]},
+        )
+        assert bare.status_code in (401, 403)
+        assert b"private transfer" not in bare.content
+        listed = client.get(
+            "/v1/files",
+            params={"network": workspace["id"]},
+            headers={"X-Workspace-Token": requester["token"]},
+        )
+        assert listed.status_code == 200, listed.text
+        assert all(item["id"] != file_id for item in listed.json()["data"]["files"])
+        owned = client.get(
+            f"/v1/files/{file_id}",
+            headers={"X-Workspace-Token": requester["token"], "X-Agent-Name": "server-agent"},
+        )
+        assert owned.status_code == 200, owned.text
+        assert owned.content == content
+
+    def test_second_approval_does_not_queue_another_release(self, client, workspace, db):
+        _, recipient, request = _created_request(client, workspace)
+        inspected = _inspection(client, recipient, request["id"]).json()["data"]
+        first = client.post(
+            f"/v1/approvals/{inspected['approval_id']}/approve",
+            headers={"Authorization": "Bearer mia"},
+            json={"network": workspace["id"]},
+        )
+        assert first.status_code == 200, first.text
+        second = client.post(
+            f"/v1/approvals/{inspected['approval_id']}/approve",
+            headers={"Authorization": "Bearer mia"},
+            json={"network": workspace["id"]},
+        )
+        assert second.status_code in (200, 400, 409)
+        releases = db.execute(
+            select(NodeCommand).where(NodeCommand.action == "local_file_release")
+        ).scalars().all()
+        assert len(releases) == 1
+
+
+def test_base64_quota_uses_the_existing_byte_limit():
+    assert base64_exceeds_quota("abcd", 3) is False
+    assert base64_exceeds_quota("abcde", 3) is True

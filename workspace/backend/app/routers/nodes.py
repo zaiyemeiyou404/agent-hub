@@ -583,6 +583,26 @@ def post_command_result(
         return json_response(ResponseCode.UNAUTHORIZED, "Invalid workspace token")
 
     command_args = cmd.command or {}
+    if cmd.action == "local_file_cancel":
+        request = db.get(LocalFileRequest, command_args.get("requestId")) if command_args.get("requestId") else None
+        if request is not None and request.current_command_id == cmd.id and request.status == "cancel_requested":
+            if body.ok:
+                request.status = "cancelled"
+                request.error_code = None
+                request.error_message = None
+            else:
+                request.error_code = "cancel_unconfirmed"
+                request.error_message = "Runtime did not confirm cancellation"
+        cmd.result = {
+            "ok": body.ok,
+            "message": "Local-file cancel confirmed" if body.ok else "Local-file cancel not confirmed",
+            "data": None,
+        }
+        cmd.status = "done" if body.ok else "error"
+        cmd.command = {}
+        cmd.finished_at = _now()
+        db.commit()
+        return success_response(_format_command(cmd))
     if cmd.action in ("local_file_inspect", "local_file_release"):
         # Protocol-private command results never persist daemon-provided paths,
         # content snippets, or other device-local diagnostics.

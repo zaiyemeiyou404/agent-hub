@@ -10,6 +10,7 @@ const {
   inspectAndSnapshot,
   loadSnapshot,
   classifySnapshot,
+  reapSnapshots,
 } = require('../src/local-file-transfer');
 
 let tmp;
@@ -38,6 +39,30 @@ function inspect(relativePath, extra = {}) {
 }
 
 describe('secure local-file snapshots', () => {
+  it('removes crash leftovers and keeps a live snapshot', () => {
+    fs.writeFileSync(path.join(root, 'notes.txt'), 'keep');
+    inspect('notes.txt');
+    fs.writeFileSync(path.join(snapshots, 'orphan.snapshot'), 'leftover');
+    fs.writeFileSync(path.join(snapshots, 'orphan.json'), '{}');
+    const outside = path.join(tmp, 'outside-secret.txt');
+    fs.writeFileSync(outside, 'do not delete');
+    fs.symlinkSync(outside, path.join(snapshots, 'linked.snapshot'));
+    const removed = reapSnapshots(snapshots, ['req-1']);
+    assert.deepEqual(removed, ['orphan']);
+    assert.equal(fs.existsSync(path.join(snapshots, 'req-1.snapshot')), true);
+    assert.equal(fs.existsSync(path.join(snapshots, 'orphan.snapshot')), false);
+    assert.equal(fs.readFileSync(outside, 'utf8'), 'do not delete');
+  });
+
+  it('rejects a directory junction that leaves the authorized root', () => {
+    if (process.platform !== 'win32') return;
+    const outside = path.join(tmp, 'outside-dir');
+    fs.mkdirSync(outside);
+    fs.writeFileSync(path.join(outside, 'secret.txt'), 'secret');
+    fs.symlinkSync(outside, path.join(root, 'linked'), 'junction');
+    assert.throws(() => inspect('linked/secret.txt'), /symlink|path|root/i);
+  });
+
   it('rejects traversal, absolute paths, unauthorized agents, and symlink escapes', () => {
     fs.writeFileSync(path.join(tmp, 'outside.txt'), 'outside');
     fs.symlinkSync(path.join(tmp, 'outside.txt'), path.join(root, 'link.txt'));
@@ -75,6 +100,22 @@ describe('secure local-file snapshots', () => {
 
     const safe = classifySnapshot(Buffer.from('meeting notes only\n'), 'notes.txt');
     assert.deepEqual(safe, { classification: 'safe', reasons: [] });
+  });
+
+  it('does not treat missed secret shapes as safe', () => {
+    const cases = [
+      [Buffer.from('{"password":"json-secret-value"}\n'), 'config.json', 'sensitive', 'structured_credential'],
+      [Buffer.from('password: "quoted-secret-value"\n'), 'config.txt', 'sensitive', 'credential_pattern'],
+      [Buffer.from('token sk-testsecretvalue\n'), 'notes.txt', 'sensitive', 'credential_pattern'],
+      [Buffer.from('{"password":"json-secret-value"}\n'), 'credentials.json', 'sensitive', 'sensitive_filename'],
+      [Buffer.from('{not json'), 'config.json', 'uncertain', 'structured_parse_failed'],
+    ];
+    for (const [bytes, filename, classification, code] of cases) {
+      const found = classifySnapshot(bytes, filename);
+      assert.equal(found.classification, classification, filename);
+      assert.notEqual(found.classification, 'safe', filename);
+      assert.ok(found.reasons.some((reason) => reason.code === code), `${filename} missing ${code}`);
+    }
   });
 
   it('fails closed for encrypted or unknown extensions', () => {

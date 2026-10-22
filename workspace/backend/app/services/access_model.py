@@ -979,9 +979,18 @@ def hidden_agent_names(db: Session, workspace_id: str, principal: Principal,
     return hidden
 
 
+def bare_machine_can_read_file(record: FileRecord) -> bool:
+    """A device token with no agent identity cannot read agent-owned or private files."""
+    visibility = (record.visibility or "").strip().lower()
+    owner = record.owner or record.uploaded_by or ""
+    if visibility == "private" or str(owner).startswith("openagents:"):
+        return False
+    return True
+
+
 def can_read_file(db: Session, workspace_id: str, principal: Principal, record: FileRecord) -> bool:
     if principal.machine:
-        return True
+        return bare_machine_can_read_file(record)
     return allowed(db, principal, resource_for_file(record), "read", workspace_id)
 
 
@@ -1004,7 +1013,12 @@ def _owned_file_agents(db: Session, workspace_id: str, principal: Principal) -> 
 def file_read_clause(db: Session, workspace_id: str, principal: Principal):
     """SQL equivalent of filter_files, applied before counting and pagination."""
     if principal.machine:
-        return true()
+        owner = func.coalesce(func.nullif(FileRecord.owner, ""), FileRecord.uploaded_by, "")
+        visibility = func.lower(func.trim(FileRecord.visibility))
+        return and_(
+            or_(visibility.is_(None), visibility != "private"),
+            func.substr(owner, 1, 11) != "openagents:",
+        )
     wid = str(workspace_id)
     hidden = hidden_channel_names(db, wid, principal)
     pairs = _identity_pairs(db, wid, principal)
@@ -1072,8 +1086,10 @@ def filter_files(db: Session, workspace_id: str, principal: Principal,
                  records: Sequence[FileRecord]) -> List[FileRecord]:
     """Bulk version of can_read_file for list endpoints: one pass over the
     hidden-channel set and the principal's file grants."""
-    if principal.machine or not records:
-        return list(records)
+    if not records:
+        return []
+    if principal.machine:
+        return [record for record in records if bare_machine_can_read_file(record)]
     wid = str(workspace_id)
     hidden_channels = hidden_channel_names(db, wid, principal)
     granted: Set[str] = thread_shared_agent_names(db, wid, principal)

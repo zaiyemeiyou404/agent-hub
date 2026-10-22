@@ -30,6 +30,7 @@ from app.storage import get_file_store
 router = APIRouter(prefix="/v1/local-file-requests", tags=["Local file requests"])
 PROTOCOL_CAPABILITY = "local_file_request.v1"
 REQUEST_TTL = timedelta(minutes=15)
+MAX_LOCAL_FILE_BYTES = 50 * 1024 * 1024
 
 _SECRET_PATTERNS = (
     re.compile(r"(?i)(password|passwd|secret|token|api[_-]?key|authorization|bearer)\s*[:=]?\s*\S+"),
@@ -66,10 +67,22 @@ class InspectionResult(BaseModel):
     content_type: str = Field(min_length=1, max_length=200)
 
 
+def base64_exceeds_quota(value: str, max_bytes: Optional[int] = None) -> bool:
+    """True when the encoded text is larger than the existing transfer quota.
+
+    The quota is the 50 MB already enforced on decoded bytes. This rejects the
+    text before it is decoded, so an oversized body is not treated as a file.
+    """
+    limit = MAX_LOCAL_FILE_BYTES if max_bytes is None else max_bytes
+    if limit < 0:
+        return True
+    return len(value) > ((limit + 2) // 3) * 4
+
+
 class FileContentUpload(BaseModel):
-    content_base64: str
+    content_base64: str = Field(max_length=((MAX_LOCAL_FILE_BYTES + 2) // 3) * 4)
     sha256: str
-    size: int = Field(ge=0, le=50 * 1024 * 1024)
+    size: int = Field(ge=0, le=MAX_LOCAL_FILE_BYTES)
     filename: str = Field(min_length=1, max_length=500)
     content_type: str = Field(min_length=1, max_length=200)
 
@@ -100,8 +113,39 @@ def _valid_relative_path(value: str) -> bool:
     return all(part not in ("", ".", "..") for part in parts)
 
 
-def serialize_request(row: LocalFileRequest) -> dict:
-    return {
+def execution_status(row: LocalFileRequest, node: Optional[Node]) -> str:
+    """Map the stored request onto the states a client can show.
+
+    A missing or offline recipient is never reported as success. Cancellation
+    stays in progress until the connector confirms it.
+    """
+    if row.status == "awaiting_approval":
+        return "awaiting_authorization"
+    if row.status == "cancel_requested":
+        return "cancelling"
+    if row.status == "cancelled":
+        return "cancelled"
+    if row.status == "completed" and row.file_id:
+        return "completed"
+    if row.status in ("failed", "rejected", "expired", "prohibited"):
+        return row.status
+    heartbeat = node.last_heartbeat if node is not None else None
+    if heartbeat is not None and heartbeat.tzinfo is None:
+        heartbeat = heartbeat.replace(tzinfo=timezone.utc)
+    online = (
+        node is not None
+        and node.status == "online"
+        and heartbeat is not None
+        and _now() - heartbeat <= timedelta(minutes=2)
+    )
+    if row.status in ("queued_inspection", "inspecting", "queued_release", "releasing", "uploading") and online:
+        return "running"
+    return "status_unconfirmed"
+
+
+def serialize_request(row: LocalFileRequest, db: Optional[Session] = None) -> dict:
+    node = db.get(Node, row.recipient_device_id) if db is not None else None
+    payload = {
         "id": row.id,
         "requester_agent_id": row.requester_agent_id,
         "requester_device_id": str(row.requester_device_id),
@@ -127,7 +171,9 @@ def serialize_request(row: LocalFileRequest) -> dict:
         "expires_at": row.expires_at.isoformat() if row.expires_at else None,
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+        "execution_status": execution_status(row, node),
     }
+    return payload
 
 
 def _active_request(db: Session, request_id: str):
@@ -256,7 +302,7 @@ def create_local_file_request(
         )
         if not same_request:
             return json_response(ResponseCode.CONFLICT, "Idempotency key is already bound to another request")
-        return success_response(serialize_request(existing))
+        return success_response(serialize_request(existing, db))
 
     recipient_member = db.get(WorkspaceMember, (str(workspace.id), recipient_agent))
     if recipient_member is None:
@@ -306,7 +352,7 @@ def create_local_file_request(
     db.flush()
     row.current_command_id = command.id
     db.commit()
-    return success_response(serialize_request(row))
+    return success_response(serialize_request(row, db))
 
 
 @router.post("/{request_id}/inspection")
@@ -395,7 +441,7 @@ def submit_local_file_inspection(
             row.approval_id = approval.id
             row.status = "awaiting_approval"
     db.commit()
-    return success_response(serialize_request(row))
+    return success_response(serialize_request(row, db))
 
 
 @router.post("/{request_id}/content")
@@ -414,9 +460,11 @@ def upload_local_file_content(
     if node is None:
         return json_response(ResponseCode.FORBIDDEN, "Only the recipient device may upload this file")
     if row.status == "completed" and row.file_id:
-        return success_response(serialize_request(row))
+        return success_response(serialize_request(row, db))
     if row.status not in ("awaiting_upload", "queued_release", "releasing", "uploading"):
         return json_response(ResponseCode.CONFLICT, f"Request is not approved for upload ({row.status})")
+    if base64_exceeds_quota(body.content_base64):
+        return json_response(ResponseCode.BAD_REQUEST, "Encoded file exceeds the transfer limit")
     if _now() >= row.expires_at.replace(tzinfo=row.expires_at.tzinfo or timezone.utc):
         row.status = "expired"
         db.commit()
@@ -465,7 +513,7 @@ def upload_local_file_content(
         command.command = {"requestId": row.id}
         command.finished_at = _now()
     db.commit()
-    return success_response(serialize_request(row))
+    return success_response(serialize_request(row, db))
 
 
 def resolve_local_file_approval(db: Session, approval: ApprovalRequest) -> None:
@@ -483,6 +531,21 @@ def resolve_local_file_approval(db: Session, approval: ApprovalRequest) -> None:
         return
     if approval.status != approval_service.STATUS_APPROVED:
         return
+    snapshot = (approval.policy_requirements or {}).get("local_file_request") or {}
+    bound = (
+        snapshot.get("sha256") == row.content_sha256
+        and snapshot.get("recipient_agent_id") == row.recipient_agent_id
+        and snapshot.get("recipient_device_id") == str(row.recipient_device_id)
+        and snapshot.get("requester_agent_id") == row.requester_agent_id
+        and snapshot.get("root_id") == row.root_id
+        and snapshot.get("relative_path") == row.relative_path
+        and snapshot.get("expires_at") == (row.expires_at.isoformat() if row.expires_at else None)
+    )
+    if not bound:
+        row.status = "failed"
+        row.error_code = "approval_binding_changed"
+        row.error_message = "The approval no longer matches this request"
+        return
     _queue_release(
         db,
         row,
@@ -490,6 +553,49 @@ def resolve_local_file_approval(db: Session, approval: ApprovalRequest) -> None:
         approval_id=approval.id,
         created_by=approval.resolved_by,
     )
+
+
+_TERMINAL_FILE_STATUSES = {"completed", "failed", "rejected", "expired", "prohibited", "cancelled"}
+
+
+@router.post("/{request_id}/cancel")
+def cancel_local_file_request(
+    request_id: str,
+    db: Session = Depends(get_db),
+    x_workspace_token: Optional[str] = Header(None),
+    x_agent_name: Optional[str] = Header(None),
+):
+    row = _active_request(db, request_id)
+    if row is None:
+        return json_response(ResponseCode.NOT_FOUND, "Local-file request not found")
+    workspace, node = resolve_machine_token(db, x_workspace_token or "")
+    if workspace is None or str(workspace.id) != str(row.workspace_id):
+        return json_response(ResponseCode.UNAUTHORIZED, "Invalid device credential")
+    agent = (x_agent_name or "").strip()
+    if node is None or agent != row.requester_agent_id or str(node.id) != str(row.requester_device_id):
+        return json_response(ResponseCode.FORBIDDEN, "Only the requesting device may cancel this transfer")
+    if row.status in _TERMINAL_FILE_STATUSES:
+        return success_response(serialize_request(row, db))
+    recipient = db.get(Node, row.recipient_device_id)
+    capabilities = set(recipient.capabilities or []) if recipient is not None else set()
+    if "local_file_cancel.v1" not in capabilities:
+        return json_response(
+            ResponseCode.CONFLICT,
+            "This connector cannot cancel a local-file transfer. The transfer stays in its current state.",
+        )
+    command = NodeCommand(
+        node_id=row.recipient_device_id,
+        workspace_id=row.workspace_id,
+        action="local_file_cancel",
+        command={"protocolVersion": 1, "requestId": row.id},
+        created_by=f"openagents:{row.requester_agent_id}",
+    )
+    db.add(command)
+    db.flush()
+    row.current_command_id = command.id
+    row.status = "cancel_requested"
+    db.commit()
+    return success_response(serialize_request(row, db))
 
 
 @router.get("/{request_id}")
@@ -512,4 +618,4 @@ def get_local_file_request(
     member = db.get(WorkspaceMember, (str(workspace.id), agent))
     if node is None or member is None or str(member.node_id or "") != str(node.id):
         return json_response(ResponseCode.FORBIDDEN, "Agent identity does not match this device")
-    return success_response(serialize_request(row))
+    return success_response(serialize_request(row, db))

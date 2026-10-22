@@ -335,7 +335,7 @@ class Daemon {
       ...nodeCfg.deviceInfo(),
       runtimes: this._runtimes || [],
       fs: this._buildFs(),
-      capabilities: ['local_file_request.v1'],
+      capabilities: ['local_file_request.v1', 'local_file_cancel.v1'],
     };
     await Promise.all(pairings.map((p) => this._nodeHeartbeatOne(nodeCfg, p, info)));
   }
@@ -885,6 +885,13 @@ async _runNodeCommand(n, cmd) {
         dedicatedResult = true;
         ok = true;
         message = 'Local-file inspection submitted';
+      } else if (action === 'local_file_cancel') {
+        if (args.protocolVersion !== 1 || !args.requestId) {
+          throw new Error('Incomplete local-file cancel command');
+        }
+        removeSnapshot(args.requestId, this._localFileSnapshotDir);
+        ok = true;
+        message = 'Local-file cancel confirmed';
       } else if (action === 'local_file_release') {
         if (args.protocolVersion !== 1) throw new Error('Unsupported local-file protocol version');
         const releaseAuthorization = args.authorization;
