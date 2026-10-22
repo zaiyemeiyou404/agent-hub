@@ -1585,3 +1585,120 @@ class ProjectPreviewTicket(Base):
     storage_key = Column(Text, nullable=False)
     principal = Column(JSONB, nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+
+
+# ---------------------------------------------------------------------------
+# Self-hosted controller identity (WP-03)
+#
+# These rows are distinct from User (upstream human account), Workspace.password_hash
+# (machine workspace token), Node (connector pairing) and DeviceToken (push registration).
+# A phone or desktop controller session never reuses a node pairing credential.
+# ---------------------------------------------------------------------------
+
+class ControllerDevice(Base):
+    """A phone or desktop controller bound to one workspace.
+
+    Standalone enrollment leaves upstream_user_id NULL and does not create a
+    User row. An upstream enrollment stores the real human account id.
+    """
+    __tablename__ = "controller_devices"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid, server_default=text("gen_random_uuid()"))
+    workspace_id = Column(UUID(as_uuid=False), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    device_key = Column(Text, nullable=False)
+    kind = Column(Text, nullable=False)  # phone | desktop
+    platform = Column(Text, nullable=False)  # windows | android | macos | linux | ios | web
+    display_name = Column(Text, nullable=True)
+    upstream_user_id = Column(UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    standalone_label = Column(Text, nullable=True)
+    identity_mode = Column(Text, nullable=False)  # standalone | upstream
+    status = Column(Text, nullable=False, default="active", server_default=text("'active'"))
+    created_at = Column(DateTime(timezone=True), default=_now, server_default=text("NOW()"))
+    last_seen_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "device_key", name="uq_controller_device_workspace_key"),
+        Index("idx_controller_devices_workspace", "workspace_id"),
+        Index("idx_controller_devices_status", "workspace_id", "status"),
+    )
+
+
+class ControllerCredential(Base):
+    """One generation of a controller session. Only hashes are stored."""
+    __tablename__ = "controller_credentials"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid, server_default=text("gen_random_uuid()"))
+    device_id = Column(UUID(as_uuid=False), ForeignKey("controller_devices.id", ondelete="CASCADE"), nullable=False)
+    workspace_id = Column(UUID(as_uuid=False), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    family_id = Column(Text, nullable=False)
+    generation = Column(Integer, nullable=False)
+    access_token_hash = Column(Text, nullable=False)
+    refresh_token_hash = Column(Text, nullable=False)
+    scopes = Column(JSONB, nullable=False, default=list)
+    access_expires_at = Column(DateTime(timezone=True), nullable=False)
+    refresh_expires_at = Column(DateTime(timezone=True), nullable=False)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    revoke_reason = Column(Text, nullable=True)  # logout | admin | replay | reenroll
+    replaced_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_now, server_default=text("NOW()"))
+
+    __table_args__ = (
+        UniqueConstraint("access_token_hash", name="uq_controller_access_hash"),
+        UniqueConstraint("refresh_token_hash", name="uq_controller_refresh_hash"),
+        Index("idx_controller_credentials_device", "device_id"),
+        Index("idx_controller_credentials_family", "family_id"),
+    )
+
+
+class AgentPrincipalBinding(Base):
+    """An agent principal is valid only on one connector node in one workspace."""
+    __tablename__ = "agent_principal_bindings"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid, server_default=text("gen_random_uuid()"))
+    workspace_id = Column(UUID(as_uuid=False), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    agent_name = Column(Text, nullable=False)
+    node_id = Column(UUID(as_uuid=False), ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)
+    status = Column(Text, nullable=False, default="active", server_default=text("'active'"))
+    created_at = Column(DateTime(timezone=True), default=_now, server_default=text("NOW()"))
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "agent_name", "node_id", name="uq_agent_principal_binding"),
+        Index("idx_agent_principal_bindings_workspace", "workspace_id", "agent_name"),
+    )
+
+
+class IdentityAuditEvent(Base):
+    """Redacted identity audit. Never stores tokens, URLs or raw credentials."""
+    __tablename__ = "identity_audit_events"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid, server_default=text("gen_random_uuid()"))
+    workspace_id = Column(UUID(as_uuid=False), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    action = Column(Text, nullable=False)
+    principal_kind = Column(Text, nullable=False)
+    device_id = Column(UUID(as_uuid=False), nullable=True)
+    reason = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=_now, server_default=text("NOW()"))
+
+    __table_args__ = (
+        Index("idx_identity_audit_workspace", "workspace_id", "created_at"),
+    )
+
+
+class IdentityStreamTicket(Base):
+    """Single-use stream grant. The long-lived session never goes in the URL."""
+    __tablename__ = "identity_stream_tickets"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid, server_default=text("gen_random_uuid()"))
+    workspace_id = Column(UUID(as_uuid=False), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    device_id = Column(UUID(as_uuid=False), ForeignKey("controller_devices.id", ondelete="CASCADE"), nullable=False)
+    ticket_hash = Column(Text, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_now, server_default=text("NOW()"))
+
+    __table_args__ = (
+        UniqueConstraint("ticket_hash", name="uq_identity_stream_ticket_hash"),
+        Index("idx_identity_stream_tickets_device", "device_id"),
+    )
