@@ -1406,7 +1406,7 @@ class _StreamVisibility:
 # GET /v1/events/stream — Server-Sent Events
 # ---------------------------------------------------------------------------
 
-def _authorize_event_stream(network, effective_token, authorization, channel=None):
+def _authorize_event_stream(network, effective_token, authorization, channel=None, stream_ticket=None):
     """Keep pool checkout, auth queries, and cleanup off the event loop."""
     db = SessionLocal()
     try:
@@ -1415,6 +1415,26 @@ def _authorize_event_stream(network, effective_token, authorization, channel=Non
         ).scalar_one_or_none()
         if not workspace:
             return None, json_response(ResponseCode.NOT_FOUND, "Network not found")
+        if stream_ticket:
+            from app.routers.identity import open_stream_with_ticket
+            opened = open_stream_with_ticket(db, stream_ticket, network)
+            if not opened.allowed:
+                status_code = {
+                    400: ResponseCode.BAD_REQUEST,
+                    401: ResponseCode.UNAUTHORIZED,
+                    403: ResponseCode.FORBIDDEN,
+                    404: ResponseCode.NOT_FOUND,
+                }.get(opened.http_status, ResponseCode.UNAUTHORIZED)
+                return None, json_response(
+                    status_code,
+                    opened.reason,
+                    data=opened.as_data(),
+                    status_code=opened.http_status,
+                )
+            workspace_id = str(workspace.id)
+            # DM filtering for upstream humans is WP-07. The ticket only proves
+            # this controller may open the workspace stream.
+            return (workspace_id, None, None, set()), None
         if not _verify_workspace_access(workspace, effective_token, authorization):
             return None, json_response(ResponseCode.UNAUTHORIZED, "Invalid credentials")
         workspace_id = str(workspace.id)
@@ -1436,6 +1456,7 @@ async def stream_events(
     channel: Optional[str] = Query(None),
     token: Optional[str] = Query(None),
     access_token: Optional[str] = Query(None, description="Bearer token for browsers (EventSource cannot set headers); identifies the signed-in person"),
+    stream_ticket: Optional[str] = Query(None, description="Single-use controller stream grant. Not a session credential."),
     x_workspace_token: Optional[str] = Header(None),
     authorization: Optional[str] = Header(None),
 ):
@@ -1455,7 +1476,7 @@ async def stream_events(
         authorization = f"Bearer {access_token}"
 
     scope, error = await run_in_threadpool(
-        _authorize_event_stream, network, effective_token, authorization, channel,
+        _authorize_event_stream, network, effective_token, authorization, channel, stream_ticket,
     )
     if error is not None:
         return error

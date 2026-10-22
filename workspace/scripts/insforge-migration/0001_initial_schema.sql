@@ -1061,8 +1061,98 @@ CREATE INDEX IF NOT EXISTS idx_channel_human_members_email ON channel_human_memb
 CREATE INDEX IF NOT EXISTS idx_local_file_requests_recipient_status ON local_file_requests (recipient_device_id, status);
 CREATE INDEX IF NOT EXISTS idx_local_file_requests_requester ON local_file_requests (workspace_id, requester_agent_id, created_at);
 
+CREATE TABLE IF NOT EXISTS controller_devices (
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	workspace_id UUID NOT NULL,
+	device_key TEXT NOT NULL,
+	kind TEXT NOT NULL,
+	platform TEXT NOT NULL,
+	display_name TEXT,
+	upstream_user_id UUID,
+	standalone_label TEXT,
+	identity_mode TEXT NOT NULL,
+	status TEXT DEFAULT 'active' NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+	last_seen_at TIMESTAMP WITH TIME ZONE,
+	revoked_at TIMESTAMP WITH TIME ZONE,
+	PRIMARY KEY (id),
+	CONSTRAINT uq_controller_device_workspace_key UNIQUE (workspace_id, device_key),
+	FOREIGN KEY(workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE,
+	FOREIGN KEY(upstream_user_id) REFERENCES users (id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS controller_credentials (
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	device_id UUID NOT NULL,
+	workspace_id UUID NOT NULL,
+	family_id TEXT NOT NULL,
+	generation INTEGER NOT NULL,
+	access_token_hash TEXT NOT NULL,
+	refresh_token_hash TEXT NOT NULL,
+	scopes JSONB NOT NULL,
+	access_expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	refresh_expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	revoked_at TIMESTAMP WITH TIME ZONE,
+	revoke_reason TEXT,
+	replaced_at TIMESTAMP WITH TIME ZONE,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+	PRIMARY KEY (id),
+	CONSTRAINT uq_controller_access_hash UNIQUE (access_token_hash),
+	CONSTRAINT uq_controller_refresh_hash UNIQUE (refresh_token_hash),
+	FOREIGN KEY(device_id) REFERENCES controller_devices (id) ON DELETE CASCADE,
+	FOREIGN KEY(workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS agent_principal_bindings (
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	workspace_id UUID NOT NULL,
+	agent_name TEXT NOT NULL,
+	node_id UUID NOT NULL,
+	status TEXT DEFAULT 'active' NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+	revoked_at TIMESTAMP WITH TIME ZONE,
+	PRIMARY KEY (id),
+	CONSTRAINT uq_agent_principal_binding UNIQUE (workspace_id, agent_name, node_id),
+	FOREIGN KEY(workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE,
+	FOREIGN KEY(node_id) REFERENCES nodes (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS identity_audit_events (
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	workspace_id UUID NOT NULL,
+	action TEXT NOT NULL,
+	principal_kind TEXT NOT NULL,
+	device_id UUID,
+	reason TEXT NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+	PRIMARY KEY (id),
+	FOREIGN KEY(workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS identity_stream_tickets (
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	workspace_id UUID NOT NULL,
+	device_id UUID NOT NULL,
+	ticket_hash TEXT NOT NULL,
+	expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	used_at TIMESTAMP WITH TIME ZONE,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+	PRIMARY KEY (id),
+	CONSTRAINT uq_identity_stream_ticket_hash UNIQUE (ticket_hash),
+	FOREIGN KEY(workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE,
+	FOREIGN KEY(device_id) REFERENCES controller_devices (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_controller_devices_workspace ON controller_devices (workspace_id);
+CREATE INDEX IF NOT EXISTS idx_controller_devices_status ON controller_devices (workspace_id, status);
+CREATE INDEX IF NOT EXISTS idx_controller_credentials_device ON controller_credentials (device_id);
+CREATE INDEX IF NOT EXISTS idx_controller_credentials_family ON controller_credentials (family_id);
+CREATE INDEX IF NOT EXISTS idx_agent_principal_bindings_workspace ON agent_principal_bindings (workspace_id, agent_name);
+CREATE INDEX IF NOT EXISTS idx_identity_audit_workspace ON identity_audit_events (workspace_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_identity_stream_tickets_device ON identity_stream_tickets (device_id);
+
 CREATE TABLE IF NOT EXISTS alembic_version (
     version_num varchar(32) NOT NULL PRIMARY KEY
 );
 INSERT INTO alembic_version (version_num)
-SELECT '084' WHERE NOT EXISTS (SELECT 1 FROM alembic_version);
+SELECT '085' WHERE NOT EXISTS (SELECT 1 FROM alembic_version);

@@ -19,7 +19,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, SQLAlchemyError, TimeoutError as PoolTimeoutError
 
 from app.config import config
-from app.routers import web_projects, reactions, agent_services, account, agent_profile, app_version, approvals, auth, briefs, browser, campaign, pilot, cloud_agents, devices, events, feedback, fetch, files, grants, groups, integrations, invites, issues, knowledge, local_file_requests, model_access, network, nodes, notifications, onboarding, routines, search, shares, sharing, tasks, thread_access, timers, todos, watches, workflows, workspaces
+from app.routers import web_projects, reactions, agent_services, account, agent_profile, app_version, approvals, auth, briefs, browser, campaign, pilot, cloud_agents, devices, events, feedback, fetch, files, grants, groups, identity, integrations, invites, issues, knowledge, local_file_requests, model_access, network, nodes, notifications, onboarding, routines, search, shares, sharing, tasks, thread_access, timers, todos, watches, workflows, workspaces
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -594,9 +594,10 @@ async def _log_validation_errors(request: Request, exc: RequestValidationError):
         body_preview = body.decode("utf-8", errors="replace")[:1024]
     except Exception:
         body_preview = "<unreadable>"
+    from app.services.credential_redaction import redact_diagnostic
     logger.warning(
         "validation 422 path=%s errors=%s body=%s",
-        request.url.path, exc.errors(), body_preview,
+        request.url.path, exc.errors(), redact_diagnostic(body_preview),
     )
     return _ValidationJSONResponse(
         status_code=422, content={"detail": exc.errors()},
@@ -616,6 +617,7 @@ app.include_router(thread_access.router)
 app.include_router(agent_profile.router)
 app.include_router(briefs.router)
 app.include_router(auth.router)
+app.include_router(identity.router)
 app.include_router(campaign.router)
 app.include_router(pilot.router)
 app.include_router(browser.router)
