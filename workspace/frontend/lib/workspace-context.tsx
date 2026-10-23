@@ -23,7 +23,7 @@ import { unreadCutoffMs } from './unread-window';
 import { useDiscoveryPolling } from '@/hooks/use-discovery-polling';
 import { groupSignals, withoutLocallyRead, type UnreadSignals } from './signals';
 import type { PendingUpload } from '@/hooks/use-upload-queue';
-import type { ApprovalRequest, BrowserPersistentContext, BrowserTab, BrowserTabLimits, DMConversation, KanbanTask, Workflow, WorkflowStep, KnowledgeEntry, NotificationItem, OnlineUser, RoutineItem, TodoItem, TrashEntry, Workspace, WorkspaceAgent, WorkspaceFile, WorkspaceIdentity, WorkspaceSession } from './types';
+import type { ApprovalRequest, BrowserPersistentContext, BrowserTab, BrowserTabLimits, DMConversation, KanbanTask, Workflow, WorkflowStep, KnowledgeEntry, NotificationItem, OnlineUser, RoutineDraft, RoutineItem, TodoItem, TrashEntry, Workspace, WorkspaceAgent, WorkspaceFile, WorkspaceIdentity, WorkspaceSession } from './types';
 import type { ChannelVisibility } from './types'; // v1.1 M1
 import type { ArtifactVisibility } from './types'; // permission model v1.1
 
@@ -249,16 +249,11 @@ interface WorkspaceContextValue {
   deleteWorkflow: (id: string) => Promise<void>;
   routines: RoutineItem[];
   refreshRoutines: () => Promise<void>;
-  createRoutine: (params: {
-    name: string;
-    message: string;
-    source: string;
-    hour?: number;
-    minute?: number;
-    days?: number[];
-    interval_minutes?: number;
-    conversation_history?: string;
-  }) => Promise<void>;
+  createRoutine: (params: RoutineDraft) => Promise<void>;
+  updateRoutine: (
+    routineId: string,
+    params: Partial<RoutineDraft> & { status?: 'active' | 'paused' },
+  ) => Promise<void>;
   knowledge: KnowledgeEntry[];
   refreshKnowledge: () => Promise<void>;
   createKnowledge: (params: { title: string; content: string; folderPath?: string; description?: string; visibility?: ArtifactVisibility }) => Promise<KnowledgeEntry>;
@@ -732,9 +727,16 @@ export function WorkspaceProvider({
 
   const refreshWorkspace = useCallback(async () => {
     try {
-      const ws = await workspaceApi.getWorkspace();
+      // The agents come from discover, as every other refresh takes them: the
+      // workspace record's copies lack ownerEmail/canStartThread, and the
+      // sidebar filters on those — taking them dropped Yumi (and the viewer's
+      // own agents) until the next discovery poll put them back.
+      const [ws, discovery] = await Promise.all([
+        workspaceApi.getWorkspace(),
+        workspaceApi.discover(lastReadRef.current),
+      ]);
       setWorkspace(ws);
-      setAgents(ws.agents);
+      setAgents(discovery.agents.map(networkAgentToWorkspaceAgent));
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load workspace');
@@ -1100,16 +1102,7 @@ export function WorkspaceProvider({
     }
   }, []);
 
-  const createRoutine = useCallback(async (params: {
-    name: string;
-    message: string;
-    source: string;
-    hour?: number;
-    minute?: number;
-    days?: number[];
-    interval_minutes?: number;
-    conversation_history?: string;
-  }) => {
+  const createRoutine = useCallback(async (params: RoutineDraft) => {
     await workspaceApi.createRoutine(params);
     await refreshRoutines();
   }, [refreshRoutines]);
@@ -1123,6 +1116,14 @@ export function WorkspaceProvider({
       // Non-critical
     }
   }, []);
+
+  const updateRoutine = useCallback(async (
+    routineId: string,
+    params: Partial<RoutineDraft> & { status?: 'active' | 'paused' },
+  ) => {
+    await workspaceApi.updateRoutine(routineId, params);
+    await refreshRoutines();
+  }, [refreshRoutines]);
 
   const refreshNotifications = useCallback(async () => {
     try {
@@ -2120,6 +2121,7 @@ export function WorkspaceProvider({
         routines,
         refreshRoutines,
         createRoutine,
+        updateRoutine,
         knowledge,
         refreshKnowledge,
         createKnowledge,
