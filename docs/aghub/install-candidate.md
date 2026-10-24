@@ -90,6 +90,9 @@ dependencies into `packages/launcher/.aghub-core/core`, with `manifest.json`
 beside it. No upstream core package is downloaded. The manifest has a closed
 file list with SHA-256 hashes and fixed main/CLI entrypoints. The packaged app
 embeds its trusted manifest in app.asar and checks the external CLI copy too.
+Staging hashes the installed bytes; it does not independently re-verify npm
+tarball integrity. A fresh successful `npm ci` with the committed lockfiles is
+a required build prerequisite, and its logs must accompany acceptance.
 
 From `packages/launcher`, build an unsigned Windows x64 NSIS test artifact:
 

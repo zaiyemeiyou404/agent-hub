@@ -21,7 +21,7 @@ describe('GitHubClient', () => {
     assert.equal(h.Authorization, 'Bearer tok-123');
     assert.equal(h.Accept, 'application/vnd.github+json');
     assert.equal(h['X-GitHub-Api-Version'], '2022-11-28');
-    assert.match(h['User-Agent'], /agent-launcher/);
+    assert.match(h['User-Agent'], /aghub-connector/);
   });
 
   it('probe rejects without a token', async () => {

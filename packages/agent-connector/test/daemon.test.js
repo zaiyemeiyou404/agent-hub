@@ -1065,6 +1065,7 @@ describe('Daemon', () => {
 
   it('readDaemonPid reads valid pid', () => {
     fs.writeFileSync(path.join(tmpDir, 'daemon.pid'), String(process.pid), 'utf-8');
+    fs.writeFileSync(path.join(tmpDir, 'daemon.status.json'), JSON.stringify({pid:process.pid,core:require('../src/core-identity').verifyManagedCore()}));
     assert.equal(Daemon.readDaemonPid(tmpDir), process.pid);
   });
 
@@ -1178,7 +1179,7 @@ describe('Daemon pid resolution (dual-source)', () => {
     fs.writeFileSync(path.join(tmpDir, 'daemon.pid'), String(deadPid), 'utf-8');
     fs.writeFileSync(
       path.join(tmpDir, 'daemon.status.json'),
-      JSON.stringify({ pid: livePid, agents: {} }),
+      JSON.stringify({ pid: livePid, agents: {}, core:require('../src/core-identity').verifyManagedCore() }),
       'utf-8',
     );
 
@@ -1205,7 +1206,7 @@ describe('Daemon pid resolution (dual-source)', () => {
     fs.writeFileSync(path.join(tmpDir, 'daemon.pid'), String(deadPid), 'utf-8');
     fs.writeFileSync(
       path.join(tmpDir, 'daemon.status.json'),
-      JSON.stringify({ pid: livePid, agents: {} }),
+      JSON.stringify({ pid: livePid, agents: {}, core:require('../src/core-identity').verifyManagedCore() }),
       'utf-8',
     );
 

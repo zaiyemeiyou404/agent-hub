@@ -5,6 +5,9 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   main: {
+    build: {
+      commonjsOptions: { include: [/node_modules/, /agent-connector[\\/]src[\\/]core-(integrity|identity)\.js/] }
+    },
     plugins: [externalizeDepsPlugin()]
   },
   preload: {

@@ -20,6 +20,7 @@ import {
 import { getVerifiedCore, resolveWorkingNode } from "./runtime"
 import { assertDaemonCoreIdentity } from "./daemon-identity"
 import { createHash } from "crypto"
+import identity from "../../../../agent-connector/src/core-identity.js"
 
 /** Launcher-side note in the daemon's own log, so both sides share a timeline. */
 export function appendDaemonLog(message: string): void {
@@ -56,6 +57,9 @@ export function getLiveDaemonPid(
   connector: Record<string, unknown> | null,
   onStale?: () => void,
 ): number | null {
+  // Check every live coordination-file PID before the legacy liveness reader
+  // can delete a stale-looking file or heal a PID from a different status.
+  identity.assertCompatibleDaemon(CONFIG_DIR, getVerifiedCore())
   try {
     const getDaemonPid = connector?.getDaemonPid as
       (() => number | null) | undefined

@@ -96,15 +96,16 @@ function ensureWritableDir(dir: string): boolean {
  */
 export function asciiCacheRootCandidates(
   env: NodeJS.ProcessEnv = process.env,
+  productName = "OpenAgents",
 ): string[] {
   const out: string[] = []
   const programData = env.ProgramData || env.ALLUSERSPROFILE
   if (programData && !hasNonAsciiPathSegment(programData)) {
-    out.push(path.join(programData, "OpenAgents", "updater-cache"))
+    out.push(path.join(programData, productName, "updater-cache"))
   }
   const systemDrive = env.SystemDrive || "C:"
-  out.push(path.join(`${systemDrive}\\`, "Users", "Public", "OpenAgents", "updater-cache"))
-  out.push(path.join(`${systemDrive}\\`, "OpenAgents", "updater-cache"))
+  out.push(path.join(`${systemDrive}\\`, "Users", "Public", productName, "updater-cache"))
+  out.push(path.join(`${systemDrive}\\`, productName, "updater-cache"))
   return out.filter((p) => !hasNonAsciiPathSegment(p))
 }
 
@@ -120,6 +121,7 @@ export function redirectUpdaterCacheToAsciiPath(
   updater: unknown,
   log: (msg: string) => void = () => {},
   env: NodeJS.ProcessEnv = process.env,
+  productName = "OpenAgents",
 ): string | null {
   if (process.platform !== "win32") return null
   const adapter = (updater as { app?: CacheRootHolder }).app
@@ -135,7 +137,7 @@ export function redirectUpdaterCacheToAsciiPath(
   // for the overwhelming majority of installs that never had a problem.
   if (!currentRoot || !hasNonAsciiPathSegment(currentRoot)) return null
 
-  for (const candidate of asciiCacheRootCandidates(env)) {
+  for (const candidate of asciiCacheRootCandidates(env, productName)) {
     if (!ensureWritableDir(candidate)) continue
     // baseCachePath is a getter on ElectronAppAdapter.prototype; an own
     // property shadows it for this instance.

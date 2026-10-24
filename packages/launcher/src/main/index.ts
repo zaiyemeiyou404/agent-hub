@@ -2113,7 +2113,7 @@ function setupIPC(): void {
         // wrong and dies with "The system cannot find the path specified." The
         // BOM + `chcp 65001` together make non-ASCII paths in the script work.
         fs.writeFileSync(tmpCmd, "﻿" + lines.join("\r\n"), "utf-8")
-        exec(`start "OpenAgents Login" cmd /K "${tmpCmd}"`, {
+        exec(`start "AgentHub Login" cmd /K "${tmpCmd}"`, {
           stdio: "ignore",
           shell: true,
           // The one place a console window IS the feature — the user signs in
@@ -2674,7 +2674,7 @@ app.whenReady().then(async () => {
     // stuck on a colour nothing else in the app uses.
     const splashHtml = `
       <html><body style="margin:0;font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:${c.bg};color:${c.title};">
-        <div style="font-size:28px;font-weight:700;margin-bottom:8px;">OpenAgents</div>
+        <div style="font-size:28px;font-weight:700;margin-bottom:8px;">AgentHub</div>
         <div id="msg" style="font-size:14px;color:${c.msg};margin-bottom:20px;">${!nodeExists ? "Preparing first launch..." : "Starting..."}</div>
         <div style="width:240px;height:6px;background:${c.track};border-radius:3px;overflow:hidden;">
           <div id="bar" style="width:10%;height:100%;background:${c.accent};border-radius:3px;transition:width 0.5s;"></div>

@@ -1,4 +1,5 @@
 'use strict';
+require('./core-identity').verifyManagedCore();
 
 // Must run before anything captures a child_process reference: on Windows it
 // keeps every spawn from popping a stray console window. See win-console.js.
