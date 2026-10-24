@@ -1293,14 +1293,15 @@ describe('the control poller cannot be silenced by one await', () => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ data: { events } }));
     });
-    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const { listenDevApi, DEV_API } = require('./dev-loopback');
+    const release = await listenDevApi(server);
 
     const adapter = new BaseAdapter({
       workspaceId: 'ws',
       channelName: 'thread',
       token: 'token',
       agentName: 'agent',
-      endpoint: `http://127.0.0.1:${server.address().port}`,
+      endpoint: DEV_API,
     });
     const stopped = [];
     adapter._handleUserStop = async (channel) => { stopped.push(channel); };
@@ -1315,7 +1316,7 @@ describe('the control poller cannot be silenced by one await', () => {
       adapter._wakeControlPoller();
       await loop;
       server.closeAllConnections();
-      await new Promise((resolve) => server.close(resolve));
+      await release();
     }
   });
 });

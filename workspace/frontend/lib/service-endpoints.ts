@@ -31,8 +31,13 @@ export function resolveServiceUrl(raw: string | undefined | null, role: ServiceR
   throw new ConfigurationRequired(role);
 }
 
-export function readConfiguredBase(env: Env, name: string, role: ServiceRole): string {
-  return resolveServiceUrl(env[name], role, env);
+const bundledEnv: Env = {
+  AGHUB_DEV_LOOPBACK: process.env.AGHUB_DEV_LOOPBACK,
+  NEXT_PUBLIC_AGHUB_DEV_LOOPBACK: process.env.NEXT_PUBLIC_AGHUB_DEV_LOOPBACK,
+};
+
+function readStatic(value: string | undefined, role: ServiceRole): string {
+  return resolveServiceUrl(value, role, bundledEnv);
 }
 
 export function tokenForService(
@@ -44,25 +49,25 @@ export function tokenForService(
   return stored.token;
 }
 
-export function apiBaseFromEnv(env: Env = process.env): string {
+export function apiBaseFromEnv(): string {
   try {
-    return readConfiguredBase(env, 'NEXT_PUBLIC_API_URL', 'api');
+    return readStatic(process.env.NEXT_PUBLIC_API_URL, 'api');
   } catch {
     return '';
   }
 }
 
-export function authBaseFromEnv(env: Env = process.env): string {
+export function authBaseFromEnv(): string {
   try {
-    return readConfiguredBase(env, 'NEXT_PUBLIC_AUTH_BASE', 'auth');
+    return readStatic(process.env.NEXT_PUBLIC_AUTH_BASE, 'auth');
   } catch {
     return '';
   }
 }
 
-export function webBaseFromEnv(env: Env = process.env): string {
+export function webBaseFromEnv(): string {
   try {
-    return readConfiguredBase(env, 'NEXT_PUBLIC_WEB_BASE', 'web');
+    return readStatic(process.env.NEXT_PUBLIC_WEB_BASE, 'web');
   } catch {
     return '';
   }

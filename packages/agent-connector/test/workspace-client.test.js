@@ -4,6 +4,7 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { WorkspaceClient, SessionRevokedError } = require('../src/workspace-client');
 const http = require('http');
+const { listenDevApi, DEV_API } = require('./dev-loopback');
 
 describe('WorkspaceClient', () => {
   it('rejects a missing endpoint instead of using an official host', async () => {
@@ -25,12 +26,11 @@ describe('WorkspaceClient', () => {
   });
 
   it('_post rejects on network error', async () => {
-    // Use a port that nothing is listening on
-    const client = new WorkspaceClient('http://127.0.0.1:19999');
+    const client = new WorkspaceClient('https://127.0.0.1:1');
     await assert.rejects(
       () => client._post('/v1/test', { foo: 'bar' }),
       (err) => {
-        assert.ok(err.message.includes('ECONNREFUSED') || err.message.includes('connect'));
+        assert.equal(err.code, 'ECONNREFUSED');
         return true;
       }
     );
@@ -39,19 +39,17 @@ describe('WorkspaceClient', () => {
   it('registerAgent builds correct request shape', async () => {
     // We can't easily test the full HTTP flow without a server,
     // but we can verify the method signature works
-    const client = new WorkspaceClient('http://127.0.0.1:19999');
+    const client = new WorkspaceClient('https://127.0.0.1:1');
     await assert.rejects(
       () => client.registerAgent('test-agent', { apiKey: 'sk-123' }),
     );
   });
 
-  it('createWorkspace builds correct url format', () => {
-    const client = new WorkspaceClient('https://workspace-endpoint.openagents.org/v1');
-    // Test the frontend URL derivation logic
-    const frontendUrl = client.endpoint
-      .replace('workspace-endpoint', 'workspace')
-      .replace('/v1', '');
-    assert.equal(frontendUrl, 'https://workspace.openagents.org');
+  it('createWorkspace rejects an endpoint that is not an origin', () => {
+    assert.throws(
+      () => new WorkspaceClient('https://workspace-endpoint.openagents.org/v1'),
+      /configuration_required/,
+    );
   });
 
   it('SessionRevokedError is thrown when server returns session_revoked message', async () => {
@@ -63,10 +61,9 @@ describe('WorkspaceClient', () => {
         message: 'session_revoked: another client is now running as this agent',
       }));
     });
-    await new Promise((r) => server.listen(0, r));
-    const port = server.address().port;
+    const release = await listenDevApi(server);
     try {
-      const client = new WorkspaceClient(`http://127.0.0.1:${port}`);
+      const client = new WorkspaceClient(DEV_API);
       let caught = null;
       try {
         await client._post('/v1/heartbeat', { agent_name: 'x', network: 'n', session_id: 'stale' });
@@ -77,12 +74,12 @@ describe('WorkspaceClient', () => {
       assert.ok(caught instanceof SessionRevokedError, 'expected SessionRevokedError');
       assert.equal(caught.code, 'session_revoked');
     } finally {
-      await new Promise((r) => server.close(r));
+      await release();
     }
   });
 
   it('sendEvent embeds session_id in event.metadata when provided', () => {
-    const client = new WorkspaceClient('http://127.0.0.1:19999');
+    const client = new WorkspaceClient('https://api.example.com');
     // Capture what _post receives by stubbing it
     let capturedBody = null;
     client._post = async (_path, body) => { capturedBody = body; return { data: {} }; };
@@ -94,7 +91,7 @@ describe('WorkspaceClient', () => {
   });
 
   it('heartbeat includes session_id when provided', () => {
-    const client = new WorkspaceClient('http://127.0.0.1:19999');
+    const client = new WorkspaceClient('https://api.example.com');
     let capturedBody = null;
     client._post = async (_path, body) => { capturedBody = body; return { data: {} }; };
     return client.heartbeat('ws-1', 'bary-bot', 'tok', 'sess-abc')
@@ -106,7 +103,7 @@ describe('WorkspaceClient', () => {
   });
 
   it('nodeHeartbeat forwards agents, runtimes and fs', () => {
-    const client = new WorkspaceClient('http://127.0.0.1:19999');
+    const client = new WorkspaceClient('https://api.example.com');
     let capturedBody = null;
     client._post = async (_path, body) => { capturedBody = body; return { data: {} }; };
     return client.nodeHeartbeat('node-1', 'tok', {
@@ -124,7 +121,7 @@ describe('WorkspaceClient', () => {
 
   describe('pollPending server-side targeting', () => {
     it('sends target_agents so the server pre-filters, and still client-filters', async () => {
-      const client = new WorkspaceClient('http://127.0.0.1:19999');
+      const client = new WorkspaceClient('https://api.example.com');
       let capturedPath = null;
       client._get = async (path) => {
         capturedPath = path;
@@ -146,7 +143,7 @@ describe('WorkspaceClient', () => {
     });
 
     it('falls back to last event id when the backend sends no next_cursor', async () => {
-      const client = new WorkspaceClient('http://127.0.0.1:19999');
+      const client = new WorkspaceClient('https://api.example.com');
       client._get = async () => ({ data: { events: [
         { id: 'e9', source: 'human:user', target: 'channel/c', payload: { content: 'hi', message_type: 'chat' }, metadata: { target_agents: ['bary-bot'] } },
       ] } });  // no next_cursor (older backend)
@@ -168,9 +165,8 @@ describe('WorkspaceClient', () => {
 describe('WorkspaceClient request deadlines', () => {
   it('_get rejects promptly when the server accepts but never responds', { timeout: 10000 }, async () => {
     const server = http.createServer(() => { /* intentionally never respond */ });
-    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const { port } = server.address();
-    const client = new WorkspaceClient(`http://127.0.0.1:${port}`);
+    const release = await listenDevApi(server);
+    const client = new WorkspaceClient(DEV_API);
     const start = Date.now();
     try {
       // Says what happened. The deadline used to surface as a bare
@@ -183,7 +179,7 @@ describe('WorkspaceClient request deadlines', () => {
       const elapsed = Date.now() - start;
       assert.ok(elapsed < 5000, `expected reject within 5s, took ${elapsed}ms`);
     } finally {
-      await new Promise((resolve) => server.close(resolve));
+      await release();
     }
   });
 
@@ -197,8 +193,8 @@ describe('WorkspaceClient request deadlines', () => {
         res.end('<html>Bad Gateway</html>');
       }
     });
-    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const client = new WorkspaceClient(`http://127.0.0.1:${server.address().port}`);
+    const release = await listenDevApi(server);
+    const client = new WorkspaceClient(DEV_API);
     try {
       await assert.rejects(() => client._get('/json'), { message: 'database unavailable', status: 503 });
       await assert.rejects(() => client._get('/html'), (err) => {
@@ -207,7 +203,7 @@ describe('WorkspaceClient request deadlines', () => {
         return true;
       });
     } finally {
-      await new Promise((resolve) => server.close(resolve));
+      await release();
     }
   });
 
@@ -241,8 +237,8 @@ describe('WorkspaceClient request deadlines', () => {
     for (const [method, send] of Object.entries(requests)) {
       it(`${method} rejects when the response ${how}`, { timeout: 10000 }, async () => {
         const server = http.createServer((_req, res) => respond(res));
-        await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-        const client = new WorkspaceClient(`http://127.0.0.1:${server.address().port}`);
+        const release = await listenDevApi(server);
+        const client = new WorkspaceClient(DEV_API);
         try {
           const outcome = await Promise.race([
             send(client).then(() => 'resolved', () => 'rejected'),
@@ -251,7 +247,7 @@ describe('WorkspaceClient request deadlines', () => {
           assert.equal(outcome, 'rejected');
         } finally {
           server.closeAllConnections();
-          await new Promise((resolve) => server.close(resolve));
+          await release();
         }
       });
     }

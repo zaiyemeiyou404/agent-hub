@@ -21,6 +21,16 @@ describe("endpoints", () => {
 })
 
 describe("webBase override", () => {
+  it("keeps the web origin when the API origin is a different host", () => {
+    process.env.OPENAGENTS_WORKSPACE_WEB_BASE = "https://web.example.com"
+    try {
+      expect(apiBase("https://api.example.com")).toBe("https://api.example.com")
+      expect(webBase()).toBe("https://web.example.com")
+    } finally {
+      delete process.env.OPENAGENTS_WORKSPACE_WEB_BASE
+    }
+  })
+
   it("uses the explicit web origin rather than deriving one", () => {
     process.env.OPENAGENTS_WORKSPACE_WEB_BASE = "https://preview.example.com/"
     try {

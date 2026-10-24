@@ -13,6 +13,7 @@ const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('http');
 const { WorkspaceClient } = require('../src/workspace-client');
+const { listenDevApi, DEV_API } = require('./dev-loopback');
 
 /** One-shot JSON server that records every request's method, url, headers. */
 function makeServer() {
@@ -30,13 +31,13 @@ function makeServer() {
 }
 
 describe('X-Agent-Name header', () => {
-  let server, seen, endpoint;
+  let server, seen, endpoint, release;
   before(async () => {
     ({ server, seen } = makeServer());
-    await new Promise((r) => server.listen(0, '127.0.0.1', r));
-    endpoint = `http://127.0.0.1:${server.address().port}`;
+    release = await listenDevApi(server);
+    endpoint = DEV_API;
   });
-  after(() => server.close());
+  after(async () => { if (release) await release(); });
 
   const last = () => seen[seen.length - 1];
 

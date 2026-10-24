@@ -1,3 +1,5 @@
+import { apiRewriteOrigin } from './lib/api-rewrite.mjs';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
@@ -10,17 +12,7 @@ const nextConfig = {
   // alt text spills into the brand block. Serve the files as-is.
   images: { unoptimized: true },
   async rewrites() {
-    const api = process.env.NEXT_PUBLIC_API_URL || '';
-    let destination = '';
-    try {
-      const url = new URL(api);
-      const dev = process.env.AGHUB_DEV_LOOPBACK === '1' || process.env.NEXT_PUBLIC_AGHUB_DEV_LOOPBACK === '1'
-        && url.protocol === 'http:'
-        && url.host === '127.0.0.1:18000';
-      if (url.protocol === 'https:' || dev) destination = `${url.protocol}//${url.host}`;
-    } catch {
-      destination = '';
-    }
+    const destination = apiRewriteOrigin(process.env.NEXT_PUBLIC_API_URL);
     if (!destination) return [];
     return [
       {

@@ -18,6 +18,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { listenDevApi, DEV_API } = require('./dev-loopback');
 
 const BaseAdapter = require('../src/adapters/base');
 const skillInstaller = require('../src/skill-installer');
@@ -60,7 +61,7 @@ function makeSkillZip(skillMd) {
   return Buffer.concat([localBuf, centralBuf, eocd]);
 }
 
-function startStubBackend() {
+async function startStubBackend() {
   const state = {
     controlEvents: [],   // events pollControl will return
     statusPosts: [],     // bodies POSTed to /skills/status
@@ -101,12 +102,8 @@ function startStubBackend() {
       res.end(JSON.stringify({ message: 'not found' }));
     });
   });
-  return new Promise((resolve) => {
-    server.listen(0, '127.0.0.1', () => {
-      const { port } = server.address();
-      resolve({ server, state, endpoint: `http://127.0.0.1:${port}` });
-    });
-  });
+  const release = await listenDevApi(server);
+  return { server, state, endpoint: DEV_API, release };
 }
 
 describe('skill install smoke (real WorkspaceClient + stub backend)', () => {
@@ -120,9 +117,9 @@ describe('skill install smoke (real WorkspaceClient + stub backend)', () => {
     skillInstaller.installSkill = (args) => realInstall({ ...args, fetcher: fixtureFetcher });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     skillInstaller.installSkill = realInstall;
-    backend.server.close();
+    if (backend.release) await backend.release();
     try { fs.rmSync(workDir, { recursive: true, force: true }); } catch {}
   });
 

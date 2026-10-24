@@ -135,4 +135,40 @@ describe('shared workspace host', () => {
     expect(() => host.show('team', bounds)).toThrow(/configuration_required/)
     expect(fakes.contents.loadURL).not.toHaveBeenCalled()
   })
+  it('opens the web origin when the API endpoint is a different host', () => {
+    process.env.OPENAGENTS_WORKSPACE_WEB_BASE = 'https://web.example.com'
+    fakes.bundle = false
+    try {
+      const win = { webContents:{ on:vi.fn() }, contentView:{ addChildView:vi.fn(), removeChildView:vi.fn() } }
+      const host = new WorkspaceHost({
+        getWindow:() => win as never,
+        endpoint:() => 'https://api.example.com',
+        session:() => null,
+        onExternalLogin:vi.fn(),
+      })
+      host.show('team', bounds)
+      expect(fakes.contents.loadURL).toHaveBeenCalledWith('https://web.example.com/team')
+    } finally {
+      delete process.env.OPENAGENTS_WORKSPACE_WEB_BASE
+    }
+  })
+  it('opens the dev web port when the API is the dev API port', () => {
+    process.env.AGHUB_DEV_LOOPBACK = '1'
+    process.env.OPENAGENTS_WORKSPACE_WEB_BASE = 'http://127.0.0.1:13000'
+    fakes.bundle = false
+    try {
+      const win = { webContents:{ on:vi.fn() }, contentView:{ addChildView:vi.fn(), removeChildView:vi.fn() } }
+      const host = new WorkspaceHost({
+        getWindow:() => win as never,
+        endpoint:() => 'http://127.0.0.1:18000',
+        session:() => null,
+        onExternalLogin:vi.fn(),
+      })
+      host.show('team', bounds)
+      expect(fakes.contents.loadURL).toHaveBeenCalledWith('http://127.0.0.1:13000/team')
+    } finally {
+      delete process.env.AGHUB_DEV_LOOPBACK
+      delete process.env.OPENAGENTS_WORKSPACE_WEB_BASE
+    }
+  })
 })

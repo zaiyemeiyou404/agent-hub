@@ -23,9 +23,9 @@ import { pushNotification } from "../notifications"
  * it, so a machine that never signs in never reaches this file.
  */
 
-function configuredWeb(endpoint: string | undefined): string {
+function configuredWeb(): string {
   try {
-    return webBase(endpoint)
+    return webBase()
   } catch (err) {
     if (err instanceof ConfigurationRequiredError) return ""
     throw err
@@ -247,7 +247,7 @@ export function registerAccountIpc(deps: AccountIpcDeps): AccountManager {
     event.returnValue = {
       session: host.currentSession(),
       apiUrl: deps.endpoint(),
-      webUrl: configuredWeb(deps.endpoint()),
+      webUrl: configuredWeb(),
       theme,
       locale: toWorkspaceLocale(language),
     }

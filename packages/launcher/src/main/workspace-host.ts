@@ -96,7 +96,7 @@ export class WorkspaceHost {
     // The bundle's origin is not one the API's CORS allowlist knows; this is
     // what lets it call the API at all. Set up once, before any view exists.
     try {
-      allowBundleApiAccess(apiBase(_deps.endpoint()), webBase(_deps.endpoint()))
+      allowBundleApiAccess(apiBase(_deps.endpoint()), webBase())
     } catch (err) {
       if (!(err instanceof ConfigurationRequiredError)) throw err
     }
@@ -166,7 +166,7 @@ export class WorkspaceHost {
       ? this._url
       : local
         ? this._urlFor(this._openHome ? "" : target, effectiveToken, sessionId)
-        : `${webBase(this._deps.endpoint())}/${encodeURIComponent(target || "")}`
+        : `${webBase()}/${encodeURIComponent(target || "")}`
     this._openHome = false
     if (target) {
       this._currentTarget = target
@@ -251,7 +251,7 @@ export class WorkspaceHost {
   /** Explicit account home navigation; reopening the app otherwise resumes. */
   openHome(): void {
     if (!this._view) { this._openHome = true; return }
-    this._url = bundleExists() ? this._urlFor("") : `${webBase(this._deps.endpoint())}/`
+    this._url = bundleExists() ? this._urlFor("") : `${webBase()}/`
     void this._view.webContents.loadURL(this._url).catch((err) =>
       slog(`[workspace-view] home failed: ${(err as Error).message}`),
     )
@@ -421,7 +421,7 @@ export class WorkspaceHost {
    */
   private _configuredOrigins(): string[] {
     const origins: string[] = []
-    const reads = [() => loginBase(), () => webBase(this._deps.endpoint())]
+    const reads = [() => loginBase(), () => webBase()]
     for (const read of reads) {
       try {
         origins.push(new URL(read()).origin)

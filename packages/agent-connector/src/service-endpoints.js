@@ -26,13 +26,8 @@ function resolveServiceUrl(raw, role, env = process.env) {
   throw new ConfigurationRequired(role);
 }
 
-function acceptExplicitServiceUrl(raw, role = 'api') {
-  const value = String(raw || '').trim().replace(/\/$/, '');
-  if (!value) throw new ConfigurationRequired(role);
-  let url;
-  try { url = new URL(value); } catch { throw new ConfigurationRequired(role); }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new ConfigurationRequired(role);
-  return `${url.protocol}//${url.host}`;
+function acceptExplicitServiceUrl(raw, role = 'api', env = process.env) {
+  return resolveServiceUrl(raw, role, env);
 }
 
 function workspaceLabelFromEndpoint(endpoint, slug) {

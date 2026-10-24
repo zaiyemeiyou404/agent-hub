@@ -500,7 +500,7 @@ async function makeRig(t, { nclState, channelOpts, env, workspaceId = 'ws1', sta
     channelName: 'general',
     token: 'SECRET-TOKEN-abcdef123456',
     agentName: 'Andy',
-    endpoint: 'http://127.0.0.1:1/none',
+    endpoint: 'https://api.example.com',
     agentEnv: Object.assign(
       {
         NANOCLAW_HOME: home,
@@ -606,7 +606,7 @@ test('detection: adapter reports NOT_INSTALLED when no home', async () => {
     channelName: 'general',
     token: 't',
     agentName: 'Andy',
-    endpoint: 'http://127.0.0.1:1/none',
+    endpoint: 'https://api.example.com',
     agentEnv: { NANOCLAW_HOME: '/definitely/not/here', HOME: '/definitely/not/here' },
   });
   adapter._home = null;
@@ -1026,7 +1026,7 @@ test('ack: persisted dedup survives a bridge restart (no re-display)', async (t)
     NANOCLAW_REPLY_SILENCE_MS: '120',
   };
   const mk = () => {
-    const a = new NanoClawAdapter({ workspaceId: 'ws1', channelName: 'general', token: 't', agentName: 'Andy', endpoint: 'http://127.0.0.1:1/none', agentEnv: baseEnv });
+    const a = new NanoClawAdapter({ workspaceId: 'ws1', channelName: 'general', token: 't', agentName: 'Andy', endpoint: 'https://api.example.com', agentEnv: baseEnv });
     a.client = new MockWorkspaceClient();
     a._log = () => {};
     return a;

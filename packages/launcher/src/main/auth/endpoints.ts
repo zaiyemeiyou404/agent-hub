@@ -6,22 +6,24 @@
 
 import { resolveServiceUrl, type ServiceRole } from "./service-endpoints"
 
-function fromEnv(configured: string | undefined, envName: string, role: ServiceRole): string {
-  return resolveServiceUrl(configured || process.env[envName], role)
+function fromEnv(explicit: string | undefined, envName: string, role: ServiceRole): string {
+  return resolveServiceUrl(explicit || process.env[envName], role)
 }
 
+/** The workspace API origin. This is never reused as the web or auth origin. */
 export function apiBase(configured?: string): string {
   return resolveServiceUrl(configured, "api")
 }
 
-export function webBase(configured?: string): string {
-  return fromEnv(configured, "OPENAGENTS_WORKSPACE_WEB_BASE", "web")
+/** The web origin. An explicit argument is a web URL, not the API endpoint. */
+export function webBase(explicitWeb?: string): string {
+  return fromEnv(explicitWeb, "OPENAGENTS_WORKSPACE_WEB_BASE", "web")
 }
 
-export function accountApiBase(configured?: string): string {
-  return fromEnv(configured, "OPENAGENTS_ACCOUNT_API_BASE", "auth")
+export function accountApiBase(explicitAuth?: string): string {
+  return fromEnv(explicitAuth, "OPENAGENTS_ACCOUNT_API_BASE", "auth")
 }
 
-export function loginBase(configured?: string): string {
-  return fromEnv(configured || process.env.OPENAGENTS_ACCOUNT_API_BASE, "OPENAGENTS_LOGIN_BASE", "auth")
+export function loginBase(explicitAuth?: string): string {
+  return fromEnv(explicitAuth || process.env.OPENAGENTS_ACCOUNT_API_BASE, "OPENAGENTS_LOGIN_BASE", "auth")
 }

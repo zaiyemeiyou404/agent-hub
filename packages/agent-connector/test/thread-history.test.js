@@ -92,7 +92,7 @@ describe('recent shared thread history', () => {
   });
 });
 it('requests history before the trigger and retains display names', async () => {
-  const client = new WorkspaceClient('http://localhost');
+  const client = new WorkspaceClient('https://api.example.com');
   client._get = async (url, headers, timeout) => {
     const query = new URL(url, 'http://localhost').searchParams;
     assert.equal(query.get('before'), 'trigger'); assert.equal(query.get('channel'), 'general');

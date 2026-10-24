@@ -8,6 +8,7 @@ const http = require('node:http');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const exec = promisify(execFile);
+const { listenDevApi, DEV_API } = require('./dev-loopback');
 
 it('connects with a legacy workspace token after successful resolution, without a device pairing', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agn-manual-connect-'));
@@ -16,9 +17,9 @@ it('connects with a legacy workspace token after successful resolution, without 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ code: 200, data: { workspace_id: 'workspace-id', slug: 'legacy', name: 'Legacy workspace' } }));
   });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const release = await listenDevApi(server);
   const env = { ...process.env, HOME: home, USERPROFILE: home, OPENAGENTS_SKIP_UPDATE_CHECK: '1',
-    OPENAGENTS_ENDPOINT: `http://127.0.0.1:${server.address().port}` };
+    AGHUB_DEV_LOOPBACK: '1', OPENAGENTS_ENDPOINT: DEV_API };
   const run = args => exec(process.execPath, [cli, ...args, '--config', home], { env, timeout: 15000 });
   try {
     await run(['create', 'legacy-agent', '--type', 'claude']);
@@ -29,7 +30,7 @@ it('connects with a legacy workspace token after successful resolution, without 
     const config = new Config(home);
     assert.equal(config.getAgent('legacy-agent').network, 'legacy');
   } finally {
-    await new Promise(resolve => server.close(resolve));
+    await release();
     fs.rmSync(home, { recursive: true, force: true });
   }
 });

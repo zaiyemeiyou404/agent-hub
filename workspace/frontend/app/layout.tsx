@@ -7,6 +7,7 @@ import { OpenAgentsAuthProvider } from '@/lib/openagents-auth-context';
 import { DialogsProvider } from '@/components/ui/dialogs-provider';
 import { I18nProvider } from '@/lib/i18n';
 import { MaintenanceBanner } from '@/components/maintenance/maintenance-banner';
+import { ServiceConfigurationGate } from '@/components/service-configuration-gate';
 import { getServerTranslations, resolveLocale } from '@/lib/i18n/server';
 import '@/styles/globals.css';
 
@@ -105,11 +106,13 @@ export default async function RootLayout({
             <MaintenanceBanner />
             {/* Legacy email/password AuthProvider was removed in v1.0 —
                 Firebase (OpenAgentsAuthProvider) is the sole identity path. */}
-            <OpenAgentsAuthProvider>
-              <DialogsProvider>
-                {children}
-              </DialogsProvider>
-            </OpenAgentsAuthProvider>
+            <ServiceConfigurationGate>
+              <OpenAgentsAuthProvider>
+                <DialogsProvider>
+                  {children}
+                </DialogsProvider>
+              </OpenAgentsAuthProvider>
+            </ServiceConfigurationGate>
             <Toaster />
           </I18nProvider>
         </ThemeProvider>

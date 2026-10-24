@@ -37,22 +37,13 @@ export function resolveServiceUrl(raw: string | undefined | null, role: ServiceR
   throw new ConfigurationRequiredError(role)
 }
 
-/** A caller-supplied client target. Loopback HTTP is allowed only because the caller named it. */
-export function acceptExplicitServiceUrl(raw: string | undefined | null, role: ServiceRole = "api"): string {
-  const value = (raw || "").trim().replace(/\/$/, "")
-  if (!value) throw new ConfigurationRequiredError(role)
-  let url: URL
-  try {
-    url = new URL(value)
-  } catch {
-    throw new ConfigurationRequiredError(role)
-  }
-  const host = url.hostname
-  const loopback = host === "127.0.0.1" || host === "localhost" || host === "::1"
-  if (url.protocol === "https:" || (url.protocol === "http:" && loopback)) {
-    return `${url.protocol}//${url.host}`
-  }
-  throw new ConfigurationRequiredError(role)
+/** The same origin contract as resolveServiceUrl. Nothing is stripped or widened. */
+export function acceptExplicitServiceUrl(
+  raw: string | undefined | null,
+  role: ServiceRole = "api",
+  env: Env = process.env,
+): string {
+  return resolveServiceUrl(raw, role, env)
 }
 
 export function tokenForService(

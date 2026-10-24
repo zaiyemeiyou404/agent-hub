@@ -63,7 +63,7 @@ beforeEach(() => {
   )
 })
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
 describe("session upkeep while a workspace stays open", () => {
   beforeEach(() => vi.useFakeTimers())
@@ -71,6 +71,7 @@ describe("session upkeep while a workspace stays open", () => {
 
   function setup(seconds = 3600, kind: AccountSession['kind'] = 'workspace') {
     stored = { ...SESSION, kind, expiresAt: Math.floor(Date.now() / 1000) + seconds,
+      boundApiBase: "https://api.example.com",
       ...(kind === 'firebase' ? { refreshToken: 'refresh' } : {}) }
     const onChange = vi.fn()
     const manager = new AccountManager({ endpoint: () => "https://api.example.com", openExternal: () => {}, onChange })
@@ -142,11 +143,14 @@ describe("session upkeep while a workspace stays open", () => {
     expect(stored).toBeNull()
   })
 
-  it('refreshes Firebase tokens without needing another launcher API call', async () => {
+  it('drops an old Firebase session instead of refreshing it at Google', async () => {
     const { manager } = setup(90, 'firebase')
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id_token: 'fresh-firebase', refresh_token: 'refresh', expires_in: 3600 }) }))
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
     await vi.advanceTimersByTimeAsync(60_000)
-    expect(manager.embeddedSession()?.token).toBe('fresh-firebase')
+    expect(manager.embeddedSession()).toBeNull()
+    expect(fetch).not.toHaveBeenCalled()
+    expect(stored).toBeNull()
   })
 })
 
@@ -173,6 +177,10 @@ function browserThatSignsIn(respond: (target: URL) => unknown): {
 }
 
 describe("AccountManager.signIn", () => {
+  beforeEach(() => {
+    vi.stubEnv("OPENAGENTS_WORKSPACE_WEB_BASE", "https://workspace.example.com")
+  })
+
   it("opens the workspace's desktop landing page, not the central login", async () => {
     const browser = browserThatSignsIn(() => ({ session: SESSION }))
     const manager = new AccountManager({
@@ -248,6 +256,7 @@ describe("AccountManager.signIn", () => {
       email: "a@example.com",
       displayName: null,
       expiresAt: Math.floor(Date.now() / 1000) - 10,
+      boundApiBase: "https://workspace.example.com",
     }
     const gone: Array<unknown> = []
     const manager = new AccountManager({
@@ -404,7 +413,7 @@ describe("AccountManager email authentication", () => {
     expect(service.calls.some((u) => u.includes("identitytoolkit"))).toBe(false)
   })
 
-  it("falls back to Firebase only where there is no account service", async () => {
+  it("requires the account service when login is missing, and does not ask Google", async () => {
     const service = accountService({
       "/v1/auth/login": { status: 404, body: { message: "Not Found" } },
     })
@@ -415,12 +424,11 @@ describe("AccountManager email authentication", () => {
       onChange: () => {},
     })
 
-    // Firebase is stubbed by the same mock and answers nothing usable, so the
-    // assertion is that it was reached at all.
     await expect(
       manager.signInWithPassword("a@example.com", "pw"),
-    ).rejects.toThrow()
-    expect(service.calls.some((u) => u.includes("identitytoolkit"))).toBe(true)
+    ).rejects.toThrow("SIGN_IN_NO_ACCOUNT_SERVICE")
+    expect(service.calls.some((u) => /googleapis|securetoken|identitytoolkit/i.test(u))).toBe(false)
+    expect(JSON.stringify(service.fetch.mock.calls)).not.toMatch(/AIza/)
   })
 
   it("creates an account and redeems its token into the shared Workspace session", async () => {

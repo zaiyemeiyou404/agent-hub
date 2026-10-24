@@ -76,7 +76,7 @@ import type {
   SecurityGroup,
 } from './types';
 import { eventToMessage } from './types';
-import { apiBaseFromEnv } from './service-endpoints';
+import { apiBaseFromEnv, ConfigurationRequired } from './service-endpoints';
 
 const API_URL = apiBaseFromEnv();
 /** Deadline for the static catalogs the Connect Agent view loads (and retries). */
@@ -271,6 +271,7 @@ class WorkspaceApi {
       authHeaders['Authorization'] = `Bearer ${sentBearer}`;
     }
 
+    if (!API_URL) throw new ConfigurationRequired('api');
     const url = `${API_URL}${path}`;
     const res = await fetch(url, {
       ...options,

@@ -29,7 +29,7 @@ function makeAdapter() {
     channelName: 'general',
     token: 't',
     agentName: 'a',
-    endpoint: 'http://127.0.0.1:0',
+    endpoint: 'https://api.example.com',
     onStatus: (u) => calls.push(u),
   });
   a._log = () => {};

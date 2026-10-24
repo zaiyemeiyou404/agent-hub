@@ -110,7 +110,7 @@ export async function getIdToken(): Promise<string | null> {
  * carry it only as an `email` custom claim on the ID token, so fall back to that.
  */
 export async function getResolvedEmail(): Promise<string> {
-  const user = auth.currentUser;
+  const user = (() => { try { return requireAuth().currentUser; } catch { return null; } })();
   if (!user) return '';
   if (user.email) return user.email;
   try {
@@ -121,4 +121,3 @@ export async function getResolvedEmail(): Promise<string> {
   }
 }
 
-export { auth };

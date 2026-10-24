@@ -242,3 +242,21 @@ it("hands the page the web origin its shared links must carry", () => {
   fakes.listeners.get("workspace-view:config")!(event)
   expect(event.returnValue?.webUrl).toBe("")
 })
+
+it("gives the page the web origin even when the API endpoint is a different host", () => {
+  process.env.OPENAGENTS_WORKSPACE_WEB_BASE = "https://web.example.com"
+  try {
+    registerAccountIpc({
+      appearance: () => ({ theme: "system", language: "en" }),
+      setAppearance: fakes.setAppearance, endpoint: () => "https://api.example.com",
+      getWindow: () => ({ webContents: { send: fakes.send } }) as never,
+      connectNode: fakes.connectNode, nodeStatus: fakes.nodeStatus,
+    })
+    const event: { returnValue?: { apiUrl?: string; webUrl?: string } } = {}
+    fakes.listeners.get("workspace-view:config")!(event)
+    expect(event.returnValue?.apiUrl).toBe("https://api.example.com")
+    expect(event.returnValue?.webUrl).toBe("https://web.example.com")
+  } finally {
+    delete process.env.OPENAGENTS_WORKSPACE_WEB_BASE
+  }
+})
