@@ -8,17 +8,38 @@ scripts for this candidate yet. Do not substitute an upstream release.
 
 Install Git and Node.js 20 or later, then run these commands in PowerShell,
 bash or zsh. Choose a writable working directory first.
+Use a writable npm global prefix whose executable directory is on `PATH`.
+`npm prefix -g` prints that prefix: Windows uses the prefix itself for command
+shims; macOS/Linux use its `bin` subdirectory. A custom prefix needs its own
+`PATH` entry in the current shell before running `agn`.
 
 ```text
 git clone --branch codex/zai-16-independent-endpoints --single-branch https://github.com/zaiyemeiyou404/agent-hub.git aghub
 cd aghub
 npm --prefix packages/agent-connector ci
-npm link --prefix packages/agent-connector
+cd packages/agent-connector
+npm link
+cd ../..
 agn --help
 ```
 
-`npm link` installs the `agn` command from this local checkout into your npm
-prefix; it may require a user-writable npm prefix. Record `git rev-parse HEAD`
+Run `npm link` **inside** `packages/agent-connector`. The `--prefix` option also
+changes npm's global destination, so using it on `npm link` can report success
+while linking back into the source tree and leaving the configured global
+command directory empty.
+
+`npm link` installs `agn` from this checkout into the configured npm global
+prefix. If the global prefix is not writable or `agn` is not on `PATH`, run the
+local CLI from the repository root after the
+`npm --prefix packages/agent-connector ci` step:
+
+```text
+node packages/agent-connector/bin/agent-connector.js --help
+```
+
+In subsequent CLI examples, replace the leading `agn` with
+`node packages/agent-connector/bin/agent-connector.js` when using this local form.
+Record `git rev-parse HEAD`
 when reporting results because the candidate branch can receive review fixes.
 Agent runtime installation and credentials remain separate prerequisites.
 

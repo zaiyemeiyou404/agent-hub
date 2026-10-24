@@ -5,5 +5,9 @@ export const SOURCE_INSTALL_COMMAND = [
   `git clone --branch codex/zai-16-independent-endpoints --single-branch ${SOURCE_REPOSITORY}.git aghub`,
   'cd aghub',
   'npm --prefix packages/agent-connector ci',
-  'npm link --prefix packages/agent-connector',
+  // Select the package via cwd: --prefix on link also changes its global destination.
+  'cd packages/agent-connector',
+  'npm link',
+  'cd ../..',
+  'agn --help',
 ].join('\n');

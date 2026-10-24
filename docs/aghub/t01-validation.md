@@ -148,3 +148,70 @@ Windows computer-use 实际填写与点击观察到：
 未改，未重复执行其全量套件，历史失败与限制仍保留。独立复审确认后再判断完成。
 
 脱敏日志与基线副本：`G:\codex日常\tmp\aghub-t01-settings`。
+
+
+## 2026-10-24：修复独立复验指出的 npm link 安装阻塞
+
+父提交：`36eb06aea96b0e7176c082e70dae973254922aeb`。
+Linear 新复核已确认配置表单阻塞解除，本轮针对新发现的源码安装指南错误。
+
+### 根因与复现
+
+原命令从仓库根目录运行 `npm link --prefix packages/agent-connector`。
+这里 `--prefix` 不只选择本地包，也覆盖 npm 的全局目的地。npm link 可以返回
+exit 0，却将包链接回源码树，没有向原先配置的隔离全局目录安装可用的 `agn`。
+因此只检查 link 的退出码不够，还必须核对真实命令路径并运行 CLI。
+
+本机 Windows Node 24.14.0 / npm 11.9.0 在父提交导出的新源码副本中复现：
+
+- 使用独立空 npm prefix、分开的空 user/global npmrc，缓存和临时文件在 G 盘。
+- `npm --prefix packages/agent-connector ci` 从零安装 2 个锁定依赖。
+- 原 link 命令 exit 0；隔离全局目录没有 `agn.cmd`。
+- 实际 junction 在源码 `packages/agent-connector/node_modules/@openagents-org/agent-launcher`，
+  指回同一源码目录。没有对工作树或用户实际全局目录安装别名。
+
+### 修正
+
+指南与 `workspace/frontend/lib/installation.ts` 的复制内容同步改为：
+
+```text
+npm --prefix packages/agent-connector ci
+cd packages/agent-connector
+npm link
+cd ../..
+agn --help
+```
+
+npm link 在包目录运行，保留使用者已经配置的全局 prefix。
+补充了可写 prefix 与 PATH 前提：Windows 使用 prefix 根目录，macOS/Linux 使用
+prefix/bin。复制命令追加 `agn --help`，使安装后的实际可执行入口得到验证。
+指南另提供仓库根目录的 `node packages/agent-connector/bin/agent-connector.js --help`
+作为不依赖全局别名的用法，后续示例可用该前缀替换 `agn`。
+
+### 修后实际验证
+
+从真实页面常量打包提取命令，与指南第一个代码块逐字比较一致；只跳过 git clone
+及进入已准备好的仓库目录两步，余下命令原样执行。没有用另一组手写命令冒充复制流程。
+测试开始时源码副本无 node_modules，全局 prefix 为空；未使用本机既有 `agn`。
+依赖从第一次干净 npm ci 填充的独立缓存再次安装，新流程验证开启 npm offline。
+
+| 环境 | 实测结果 |
+| --- | --- |
+| Windows Node 24.14.0 / npm 11.9.0，PowerShell，另一份新源码副本和空 prefix | ci 成功；复制块成功；agn.cmd 解析到该 prefix，global package junction 指向该源码副本；agn --help exit 0 |
+| Linux Node 20.20.2 / npm 10.8.2，本项目既有测试镜像 | 同一复制块 exit 0；command -v agn 为独立 prefix/bin/agn；readlink -f 指向该新源码；agn --help exit 0 |
+| Windows / Linux 本地 Node CLI 备用入口 | --help 均 exit 0 |
+| 实际页面复制文本与指南 | 完全一致 |
+
+Linux 使用任务专用一次性容器 `aghub-t01-install-cli`，network none、只读根目录，
+只绑定 G 盘新源码、独立 prefix、缓存和临时目录，结束自动移除。没有重建镜像、
+修改既有容器、启动服务/数据库，或改变主机 npm 全局配置。
+证据目录：`G:\codex日常\tmp\aghub-install-link-check`，含原失败记录、实际复制命令、
+Windows 新流程结果和 Linux 完整输出；原始本地日志不上传。
+
+本轮仅修改安装指南、共享复制常量及本验证记录，没有修改配置/认证运行逻辑。
+本轮重新运行共享桌面 Vite 与 Next webpack 生产构建，均 exit 0；
+两种新产物包含修正后的命令，旧的 link --prefix 命令不再出现在候选静态 JS 中。
+本轮未重跑全量单元测试或 Launcher main/preload/renderer 构建；
+此前 36eb06aea 的对应结果保留为历史证据。
+T01 保持 In Review，等待新头部独立复审及适用安装/人工验收；未标 Done、迁移、
+签名、合并、部署或变更生产/preview。
