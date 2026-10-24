@@ -24,6 +24,16 @@ T05 负责执行回执丢失后的 operation/attempt 状态。T06 在现有 Pyda
 
 ## T01 本地客户端配置与会话来源
 
-桌面 `workspace-view:config` 同步返回明确的 `apiUrl`、`webUrl`、`authUrl` 和 `devLoopback`。预加载桥将它们交给共享页面；缺少任一必需来源时显示配置提示，不从 HTML 或 Node 环境补出官方地址。只有明确开发开关允许约定的回环 HTTP。Next 网页仍使用显式的构建期 `NEXT_PUBLIC_*` 配置。
+桌面 `workspace-view:config` 同步返回明确的 `apiUrl`、`webUrl`、`authUrl` 和 `devLoopback`。预加载桥将它们交给共享页面；缺少任一必需来源时显示可填写、保存的服务设置表单，不从 HTML 或 Node 环境补出官方地址。只有明确开发开关允许约定的回环 HTTP。Next 网页优先读取本机保存的非敏感 origins；未保存时读取显式构建期 `NEXT_PUBLIC_*` 配置。
 
 本地 `WorkspaceSession` 和桌面 `EmbeddedSession` 增加 `apiBase` 来源元数据。它记录实际签发令牌的 API origin，由取得会话的客户端/主进程填写；不修改后端 JWT、数据库或身份 API。恢复存储、传递初始会话及推送刷新会话时都核对当前 API。旧的无来源会话或不同来源的会话不能自动重新绑定，需要重新登录。桌面主进程、预加载桥和共享页面应从同一候选版本构建。
+
+服务设置保存桥为 `workspace-view:configure-services`，输入为
+`{ apiBase, webBase, authBase, devLoopback }`。仅当前随包页面可调用，
+main 重新校验三个 origin，并将 `serviceOrigins` 与 Connector 使用的
+`workspaceEndpoint` 一次写入 settings.json。持久写入失败时保留旧配置，
+不结束旧会话；成功后清除旧账号与页面存储，重新打开本地首页。
+重启恢复该配置，显式开发开关仅应用于当前 app/Connector 进程。
+网页端保存到 `aghub_service_configuration_v1`，清除工作区会话及可选浏览器身份后重载；
+不会把地址配置当作身份凭据。已配置后仍可从“服务设置”进入编辑或取消。
+候选安装说明统一指向本仓库的 `install-candidate.md`，不生成尚未发布的下载地址。

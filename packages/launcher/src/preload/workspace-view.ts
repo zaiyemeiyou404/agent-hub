@@ -125,6 +125,8 @@ function subscribe<T>(channel: string, callback: (value: T) => void): () => void
  * Shared components use it only when present; the web app keeps its own behavior.
  */
 contextBridge.exposeInMainWorld("__oaHost__", {
+  configureServices: (value: { apiBase: string; webBase: string; authBase: string; devLoopback: boolean }) =>
+    ipcRenderer.invoke("workspace-view:configure-services", value),
   openComputer: () => ipcRenderer.send("workspace-view:open-computer"),
   signIn: () => ipcRenderer.send("workspace-view:sign-in"),
   signOut: () => ipcRenderer.send("workspace-view:sign-out"),

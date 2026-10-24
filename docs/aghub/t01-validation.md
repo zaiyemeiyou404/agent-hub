@@ -75,3 +75,76 @@
 合计 124 个相关定向用例通过。前端刷新用例显式配置合成 API；缺 Web/Auth 配置的负向用例保留空配置，未靠改变产品默认值使测试通过。日志/缓存目录为 `G:\codex日常\tmp\aghub-fix-2007f09`、`G:\codex日常\tmp\aghub-review-2007f09`。复核复现为 mock HTTP，桌面配置产物在没有 Node 全局变量的隔离浏览器上下文中执行，不涉及真实身份。
 
 本轮没有重跑无改动的 Connector 全量套件或后端，没有重建 Next 服务镜像，没有运行 Windows 安装包或交互式 Electron 真机验收。没有迁移、推送、合并或部署；T00/T01 的人审与整产品门禁仍保持原限制。
+
+
+## 2026-10-24：补齐独立复核发现的设置流程与安装入口
+
+本轮父提交为 `915a1e8f052ada7047c6636ad6e6fa4590f0f91a`，对应
+Linear ZAI-16 独立复验中“缺配置只能看到提示，没有可操作设置”及上游安装链接的问题。
+
+### 实现
+
+- 首次启动显示 API/Web/Auth 三个 origin 输入、显式本机开发开关、保存与错误反馈；
+  已配置后仍可从“服务设置”进入编辑和取消。网页保存非敏感 origins 后重载，
+  清除旧工作区会话及可选浏览器身份；没有 Firebase 项目的独立模式也可保存。
+- 桌面通过 `workspace-view:configure-services` 保存，main 只接受当前随包页面，
+  重新校验 URL，并原子保存三个地址与 Connector endpoint。磁盘写入失败时不改变
+  活动配置、不退出旧会话；成功后清除旧会话、等待页面存储清理再打开本地首页。
+  保存值及显式开发开关可在重启后恢复。没有修改操作系统环境变量或网络安全设置。
+- 首页 GitHub 指向自有仓库；移除上游 Discord/Twitter。首页、配对面板与聊天空状态
+  的安装命令统一指向候选源码，未发布的桌面安装包改为明确的源码构建说明，
+  不再生成 `/download/launcher/*` 或复制未实现的自动安装脚本。
+  公开 `SKILL.md` 移除上游地址与安装命令，要求显式自有 API。
+- 新增 [install-candidate.md](install-candidate.md)。它仅说明候选源码构建，
+  不将未发布的安装包当作可用下载。
+
+### 实际验证
+
+| 检查 | 结果 |
+| --- | --- |
+| Frontend `node node_modules/vitest/vitest.mjs run` | **111 files / 529 passed**，无未处理错误 |
+| Launcher `node node_modules/vitest/vitest.mjs run` | **95 files / 956 passed / 12 skipped** |
+| Frontend `node node_modules/typescript/bin/tsc --noEmit --incremental false --pretty false` | exit 0 |
+| Launcher `node node_modules/typescript/bin/tsc -b --pretty false` | exit 0 |
+| 共享桌面 `node node_modules/vite/bin/vite.js build` | exit 0；有既有大 chunk 提示 |
+| `node scripts/check-workspace-bundle.mjs`、Launcher `electron-vite build` | exit 0，main/preload/renderer 均构建成功 |
+| 网页 `NEXT_TELEMETRY_DISABLED=1 node node_modules/next/dist/bin/next build --webpack` | exit 0 |
+| 刚构建网页在新端口 `127.0.0.1:13112` 的 `/`、实际 JS 资源、`/SKILL.md` | 均 HTTP 200；初始 SSR 配置门禁、源码指南可见，无上游 install.sh 命令 |
+
+新增表单用例先在旧提示页面失败，保存 IPC 用例先在旧主进程缺失 handler 时失败。
+额外身份清理用例也先复现旧浏览器身份未清除，再通过修复。
+首次全量检查发现 11 个前端失败和 2 个桌面失败：在父提交导出的独立副本中
+复现其中 **8 个既有前端失败**（API 重试夹具没有显式 API、artifact 夹具没有
+显式 Web）。另 3 个是本轮新增读取存储对旧的局部 window 测试模拟的影响，
+已使用可选存储读取修正。桌面旧 PATH 测试使用固定 `:`，改用平台
+`path.delimiter`。只调整测试夹具，不恢复产品默认地址。最终全量结果如上。
+
+### Windows 实际配置交互
+
+使用本机既有 Electron、新构建 preload 与完整 `dist-desktop`，加载本轮真实的
+`registerAccountIpc`、`WorkspaceHost`、`Store` 和 workspace bundle protocol。
+专用测试宿主不启动 Agent core/daemon、不调用数据库，独立 userData、缓存和日志
+全部在 `G:\codex日常\tmp\aghub-t01-settings`；所有 HTTP(S) 出站被测试宿主拦截。
+Windows computer-use 实际填写与点击观察到：
+
+1. 空设置首次显示三个可填写的 origin 和保存按钮。
+2. `http://api.settings.test` 与另两个 HTTPS origin 被拒绝，显示可操作错误；
+   尚未创建 settings.json。
+3. 改成 `https://api.settings.test` 后保存成功，settings.json 同时含三个 origin 和
+   workspaceEndpoint；旧页面被销毁并重新进入有“服务设置”入口的登录首页。
+4. 重新打开设置，三个值正确回填。关闭测试窗口后重新启动，仍进入已配置的登录
+   首页，配置文件保持相同三个来源。此过程没有 HTTP(S) 出站记录。
+
+这证明本轮真实配置桥和候选共享页面的交互，不冒充完整 Launcher 启动、安装包、
+签名或线上账号验收。初次隐藏测试窗口未能用于操作，最终在单一可见测试窗口
+完成上述验证。测试宿主与原始日志未上传；可复核源码及自动测试均在仓库。
+
+### 仍需后续验收
+
+本轮修补针对上述两项产品缺口；T01 继续 **In Review**。
+未重建 Docker Next 镜像、未制作或安装发行包、未验证真实账号/配对或 Android 真机，
+没有迁移、合并、部署或签署。浏览器设置流程由 DOM 自动测试与最新 Next 构建/HTTP
+验证覆盖；本次实际 Windows UI 操作针对 Electron 共享页面。Connector/后端本轮
+未改，未重复执行其全量套件，历史失败与限制仍保留。独立复审确认后再判断完成。
+
+脱敏日志与基线副本：`G:\codex日常\tmp\aghub-t01-settings`。

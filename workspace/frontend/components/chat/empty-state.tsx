@@ -10,14 +10,11 @@ import { workspaceApi } from '@/lib/api';
 import { AgentIcon } from '@/components/icons/agent-icons';
 import { useT } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import { webBaseFromEnv } from '@/lib/service-endpoints';
+import { SOURCE_INSTALL_COMMAND } from '@/lib/installation';
+import { CandidateBuildLink } from '@/components/connect/candidate-build-link';
 
-const _web = webBaseFromEnv();
-const INSTALL_UNIX = _web ? `curl -fsSL ${_web}/install.sh | bash` : 'configuration_required';
-const INSTALL_WIN = _web ? `irm ${_web}/install.ps1 | iex` : 'configuration_required';
-function launcherDownload(name: string): string {
-  return _web ? `${_web}/download/launcher/${name}` : '';
-}
+const INSTALL_UNIX = SOURCE_INSTALL_COMMAND;
+const INSTALL_WIN = SOURCE_INSTALL_COMMAND;
 import type { AgentCatalogEntry } from '@/lib/types';
 
 export function EmptyConversation({ name, human = false, self = false }: { name?: string; human?: boolean; self?: boolean }) {
@@ -184,28 +181,7 @@ export function EmptyState() {
                 <p className="text-[11px] text-muted-foreground mb-2.5">
                   {t('onboarding.optionADescription')}
                 </p>
-                <div className="flex gap-2">
-                  {[
-                    { label: 'macOS', platform: 'mac-arm64', href: launcherDownload('mac') },
-                    { label: 'Windows', platform: 'windows', href: launcherDownload('windows') },
-                    { label: 'Linux', platform: 'linux-appimage', href: launcherDownload('linux-appimage') },
-                  ].map((dl) => (
-                    <a
-                      key={dl.label}
-                      href={dl.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => capture('launcher_download_clicked', {
-                        platform: dl.platform,
-                        source: 'workspace_onboarding',
-                        agent_type: selectedEntry.name,
-                      })}
-                      className="flex-1 text-center px-3 py-2.5 text-xs font-medium rounded-lg border hover:bg-accent transition-colors"
-                    >
-                      {dl.label}
-                    </a>
-                  ))}
-                </div>
+                <CandidateBuildLink className="block text-center px-3 py-2.5 text-xs font-medium rounded-lg border hover:bg-accent transition-colors" />
               </div>
 
               <div className="flex items-center gap-3">

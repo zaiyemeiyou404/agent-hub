@@ -75,6 +75,14 @@ export class Store {
     this._save()
   }
 
+  /** Connection changes must not report success when durable storage failed. */
+  setChecked(values: Record<string, unknown>): void {
+    this._ensurePath()
+    const next = { ...this._data, ...values }
+    writeJsonAtomic(this._path!, next)
+    this._data = next
+  }
+
   has(key: string): boolean {
     return key in this._data
   }

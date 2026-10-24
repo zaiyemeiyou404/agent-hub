@@ -1,4 +1,4 @@
-import { ConfigurationRequired, resolveServiceUrl } from './service-endpoints';
+import { ConfigurationRequired, resolveServiceUrl, webBaseFromEnv } from './service-endpoints';
 
 /**
  * The origin a link has to carry to open anywhere but this page.
@@ -13,7 +13,9 @@ export function shareOrigin(): string {
     const desktop = (window as unknown as { __OA_WEB_URL__?: string }).__OA_WEB_URL__;
     if (desktop) return resolveServiceUrl(desktop, 'web');
   }
-  return resolveServiceUrl(process.env.NEXT_PUBLIC_WEB_BASE, 'web');
+  const web = webBaseFromEnv();
+  if (!web) throw new ConfigurationRequired('web');
+  return web;
 }
 
 export { ConfigurationRequired };

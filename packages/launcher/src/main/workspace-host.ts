@@ -249,6 +249,12 @@ export class WorkspaceHost {
     this._view?.webContents.reload()
   }
 
+  /** Called only after old account storage is cleared and settings are saved. */
+  reopenForServiceConfiguration(): void {
+    this.openHome()
+    this.show(null, this._bounds)
+  }
+
   /** Explicit account home navigation; reopening the app otherwise resumes. */
   openHome(): void {
     if (!this._view) { this._openHome = true; return }

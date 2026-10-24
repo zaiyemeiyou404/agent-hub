@@ -14,6 +14,23 @@ export type ServiceRole = "api" | "web" | "auth"
 
 type Env = Record<string, string | undefined>
 
+export interface ServiceConfiguration {
+  apiBase: string
+  webBase: string
+  authBase: string
+  devLoopback: boolean
+}
+
+export function validateServiceConfiguration(value: unknown): ServiceConfiguration {
+  const raw = value as Partial<ServiceConfiguration> | null
+  if (!raw || typeof raw !== "object" || typeof raw.devLoopback !== "boolean") throw new ConfigurationRequiredError("services")
+  for (const key of ["apiBase", "webBase", "authBase"] as const) {
+    if (typeof raw[key] !== "string") throw new ConfigurationRequiredError(key)
+  }
+  const env = { AGHUB_DEV_LOOPBACK: raw.devLoopback ? "1" : "" }
+  return { apiBase: resolveServiceUrl(raw.apiBase, "api", env), webBase: resolveServiceUrl(raw.webBase, "web", env), authBase: resolveServiceUrl(raw.authBase, "auth", env), devLoopback: raw.devLoopback }
+}
+
 export function devLoopbackEnabled(env: Env = process.env): boolean {
   return env.AGHUB_DEV_LOOPBACK === "1"
 }

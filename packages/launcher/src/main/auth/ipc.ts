@@ -10,8 +10,8 @@ import {
 import { openExternalSafely } from "../web-security"
 import { WorkspaceHost, type ViewBounds } from "../workspace-host"
 import { AccountManager, type AccountWorkspace } from "./account"
-import { accountApiBase, apiBase, webBase } from "./endpoints"
-import { ConfigurationRequiredError } from "./service-endpoints"
+import { accountApiBase, apiBase, webBase, configuredDevelopmentMode, setServiceConfiguration } from "./endpoints"
+import { ConfigurationRequiredError, validateServiceConfiguration, type ServiceConfiguration } from "./service-endpoints"
 import type { AccountInfo } from "./session-store"
 import type { NodeStatus } from "../agent-manager"
 import { pushNotification } from "../notifications"
@@ -33,6 +33,8 @@ function configuredOrigin(read: () => string): string {
 }
 
 export interface AccountIpcDeps {
+  services?: unknown
+  saveServices?: (config: ServiceConfiguration) => void | Promise<void>
   /**
    * The look and feel the launcher is currently in, and a way to change it.
    * The hosted workspace shares both — see shared/appearance-bridge.
@@ -55,6 +57,7 @@ export interface AccountIpcDeps {
 const NOTICE_TYPES = new Set(["info", "success", "error", "warning"])
 
 export function registerAccountIpc(deps: AccountIpcDeps): AccountManager {
+  try { setServiceConfiguration(deps.services) } catch { setServiceConfiguration(undefined) }
   let workspaceHost: WorkspaceHost | null = null
   let viewRequest = 0
   const seenReplies = new Set<string>()
@@ -99,6 +102,22 @@ export function registerAccountIpc(deps: AccountIpcDeps): AccountManager {
   })
 
   workspaceHost = host
+
+  let savingServices = false
+  ipcMain.handle("workspace-view:configure-services", async (event, value: unknown) => {
+    if (!host.isWorkspaceSender(event.sender)) throw new Error("FORBIDDEN")
+    if (!deps.saveServices) throw new Error("configuration_unavailable")
+    if (savingServices) throw new Error("configuration_busy")
+    const config = validateServiceConfiguration(value)
+    savingServices = true
+    try {
+      await deps.saveServices(config)
+      setServiceConfiguration(config)
+      account.signOut()
+      await host.whenCleared()
+      host.reopenForServiceConfiguration()
+    } finally { savingServices = false }
+  })
 
   // The renderer is the only thing that talks to the widget; main just
   // forwards a ticket/randstr pair and only when it is well-formed.
@@ -249,7 +268,7 @@ export function registerAccountIpc(deps: AccountIpcDeps): AccountManager {
       apiUrl: configuredOrigin(() => apiBase(deps.endpoint())),
       webUrl: configuredOrigin(() => webBase()),
       authUrl: configuredOrigin(() => accountApiBase()),
-      devLoopback: process.env.AGHUB_DEV_LOOPBACK === "1",
+      devLoopback: configuredDevelopmentMode(),
       theme,
       locale: toWorkspaceLocale(language),
     }

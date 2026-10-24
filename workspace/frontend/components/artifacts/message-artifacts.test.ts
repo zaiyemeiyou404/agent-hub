@@ -9,8 +9,8 @@ vi.mock('@/lib/i18n',()=>({useT:()=>(key:string)=>key}));
 import { MessageArtifacts } from './message-artifacts';
 import { ARTIFACT_OPEN_EVENT } from '@/lib/thread-artifacts';
 let host:HTMLDivElement,root:Root;
-beforeEach(()=>{Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});opened.mockClear();host=document.createElement('div');document.body.append(host);root=createRoot(host);window.addEventListener(ARTIFACT_OPEN_EVENT,opened);});
-afterEach(async()=>{await act(async()=>root.unmount());host.remove();window.removeEventListener(ARTIFACT_OPEN_EVENT,opened);});
+beforeEach(()=>{vi.stubEnv('NEXT_PUBLIC_WEB_BASE','https://web.example.test');Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});opened.mockClear();host=document.createElement('div');document.body.append(host);root=createRoot(host);window.addEventListener(ARTIFACT_OPEN_EVENT,opened);});
+afterEach(async()=>{vi.unstubAllEnvs();await act(async()=>root.unmount());host.remove();window.removeEventListener(ARTIFACT_OPEN_EVENT,opened);});
 it('opens a just-created HTML report from its preview card before the file list refreshes',async()=>{
   await act(async()=>root.render(React.createElement(MessageArtifacts,{content:'Created [mcp-report.html](/v1/files/bb111111-2222-4333-8444-555555555555).',attachedIds:[]})));
   expect(host.textContent).toContain('mcp-report.html');

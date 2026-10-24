@@ -29,14 +29,14 @@ describe("ensureUserBinDirsOnPath", () => {
 
   it("adds ~/.local/bin when it exists and PATH lacks it", () => {
     if (!fs.existsSync(localBin())) return // nothing to assert on this machine
-    writePathEnv("/usr/bin:/bin")
+    writePathEnv(["/usr/bin", "/bin"].join(path.delimiter))
     ensureUserBinDirsOnPath()
     expect(readPathEnv().split(path.delimiter)).toContain(localBin())
   })
 
   it("appends rather than prepends — the user's own PATH keeps winning", () => {
     if (!fs.existsSync(localBin())) return
-    writePathEnv("/usr/bin:/bin")
+    writePathEnv(["/usr/bin", "/bin"].join(path.delimiter))
     ensureUserBinDirsOnPath()
     const parts = readPathEnv().split(path.delimiter)
     expect(parts[0]).toBe("/usr/bin")
@@ -44,7 +44,7 @@ describe("ensureUserBinDirsOnPath", () => {
   })
 
   it("is idempotent — a second call adds nothing", () => {
-    writePathEnv("/usr/bin:/bin")
+    writePathEnv(["/usr/bin", "/bin"].join(path.delimiter))
     ensureUserBinDirsOnPath()
     const once = readPathEnv()
     ensureUserBinDirsOnPath()
@@ -52,7 +52,7 @@ describe("ensureUserBinDirsOnPath", () => {
   })
 
   it("never invents a directory that is not there", () => {
-    writePathEnv("/usr/bin:/bin")
+    writePathEnv(["/usr/bin", "/bin"].join(path.delimiter))
     ensureUserBinDirsOnPath()
     for (const dir of readPathEnv().split(path.delimiter)) {
       if (dir === "/usr/bin" || dir === "/bin") continue

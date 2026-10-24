@@ -1,4 +1,5 @@
 import type { WorkspaceSession } from './workspace-session';
+import type { ServiceConfiguration } from './service-endpoints';
 
 /** Optional desktop capabilities. The web application has no host bridge. */
 export interface DesktopComputer {
@@ -10,6 +11,8 @@ export interface DesktopComputer {
 }
 
 export interface DesktopHost {
+  /** Main validates, persists, signs out and recreates the isolated view. */
+  configureServices?(config: ServiceConfiguration): Promise<void>;
   openComputer(): void;
   signIn(): void;
   signOut(): void;

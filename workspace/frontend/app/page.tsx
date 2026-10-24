@@ -18,12 +18,12 @@ import { capture, group } from '@/lib/analytics';
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard';
 import { useFormatters, useT, type MessageKey } from '@/lib/i18n';
 import { authBaseFromEnv, webBaseFromEnv } from '@/lib/service-endpoints';
+import { SOURCE_REPOSITORY, BUILD_GUIDE, SOURCE_INSTALL_COMMAND } from '@/lib/installation';
+import { CandidateBuildLink } from '@/components/connect/candidate-build-link';
 
 const CONFIGURED_WEB = webBaseFromEnv();
-const INSTALL_SH = CONFIGURED_WEB
-  ? `curl -fsSL ${CONFIGURED_WEB}/install.sh | bash`
-  : 'configuration_required';
-const DOCS_HREF = CONFIGURED_WEB ? `${CONFIGURED_WEB}/docs/getting-started/overview` : '';
+const INSTALL_SH = SOURCE_INSTALL_COMMAND;
+const DOCS_HREF = BUILD_GUIDE;
 
 /** A catalogue key, translated at render time, or a raw message from an Error. */
 type ErrorMessage = { key: MessageKey } | { text: string };
@@ -87,16 +87,10 @@ function LandingPage() {
               {t('landing.docs')}
             </a>
             <a
-              href="https://github.com/openagents-org/openagents"
+              href={SOURCE_REPOSITORY}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors hidden sm:inline"
             >
               GitHub
-            </a>
-            <a
-              href="https://discord.gg/openagents"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors hidden sm:inline"
-            >
-              Discord
             </a>
             {isOpenAgentsDomain && (
               <Button size="sm" variant="outline" onClick={signIn}>
@@ -117,6 +111,7 @@ function LandingPage() {
             {t('landing.heroBody')}
           </p>
           <div className="max-w-lg mx-auto space-y-3">
+            <CandidateBuildLink className="text-sm underline" />
             <CodeBlock code={INSTALL_SH} />
             <CodeBlock code={`agn create my-agent --type claude --install\nagn up`} />
           </div>
@@ -279,7 +274,7 @@ function LandingPage() {
           <p className="text-muted-foreground">
             {t('landing.ctaBody')}
           </p>
-          <CodeBlock code={`${INSTALL_SH}\nagn create my-agent --type claude --install && agn up`} className="max-w-xl mx-auto" />
+          <CodeBlock code={INSTALL_SH} className="max-w-xl mx-auto" />
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <a href={DOCS_HREF || undefined}>
               <Button>
@@ -287,14 +282,9 @@ function LandingPage() {
                 <ArrowRight className="size-4 ml-1" />
               </Button>
             </a>
-            <a href="https://github.com/openagents-org/openagents">
+            <a href={SOURCE_REPOSITORY}>
               <Button variant="outline">
                 {t('landing.ctaViewGitHub')}
-              </Button>
-            </a>
-            <a href="https://discord.gg/openagents">
-              <Button variant="outline">
-                {t('landing.ctaJoinDiscord')}
               </Button>
             </a>
           </div>
@@ -311,9 +301,7 @@ function LandingPage() {
           <div className="flex items-center gap-4">
             <a href={CONFIGURED_WEB || undefined} className="hover:text-foreground transition-colors">{t('landing.footerWebsite')}</a>
             <a href={DOCS_HREF || undefined} className="hover:text-foreground transition-colors">{t('landing.docs')}</a>
-            <a href="https://github.com/openagents-org/openagents" className="hover:text-foreground transition-colors">GitHub</a>
-            <a href="https://discord.gg/openagents" className="hover:text-foreground transition-colors">Discord</a>
-            <a href="https://twitter.com/OpenAgentsAI" className="hover:text-foreground transition-colors">Twitter</a>
+            <a href={SOURCE_REPOSITORY} className="hover:text-foreground transition-colors">GitHub</a>
           </div>
         </div>
       </footer>

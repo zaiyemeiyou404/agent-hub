@@ -1,7 +1,18 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ConfigurationRequiredError } from "./service-endpoints"
-import { accountApiBase, apiBase, webBase } from "./endpoints"
+import { accountApiBase, apiBase, webBase, loginBase, setServiceConfiguration } from "./endpoints"
+
+afterEach(() => { setServiceConfiguration(undefined); vi.unstubAllEnvs() })
+
+it("restores all saved origins and prefers the saved auth service to old environment values", () => {
+  vi.stubEnv("OPENAGENTS_ACCOUNT_API_BASE", "https://old.example.test")
+  setServiceConfiguration({ apiBase: "https://api.example.test", webBase: "https://web.example.test", authBase: "https://auth.example.test", devLoopback: false })
+  expect(apiBase()).toBe("https://api.example.test")
+  expect(webBase()).toBe("https://web.example.test")
+  expect(accountApiBase()).toBe("https://auth.example.test")
+  expect(loginBase()).toBe("https://auth.example.test")
+})
 
 describe("endpoints", () => {
   it("does not invent an API host when nothing is configured", () => {

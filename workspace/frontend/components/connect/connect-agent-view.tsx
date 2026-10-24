@@ -1,5 +1,8 @@
 'use client';
 
+import { SOURCE_INSTALL_COMMAND } from '@/lib/installation';
+import { CandidateBuildLink } from '@/components/connect/candidate-build-link';
+
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { X, Copy, Check, ExternalLink, Loader2, Terminal, Cloud, Trash2, MessageSquare, Image as ImageIcon, Volume2, Key, ChevronRight, Server, Laptop, Monitor, RefreshCw, RotateCcw, Plus, HardDrive, Pencil, Folder, CornerLeftUp, Download, Sparkles, Search, ArrowRight, CheckCircle2, Zap, AlertTriangle, Mail } from 'lucide-react';
 import { useLayout } from '@/components/layout/layout-context';
@@ -483,11 +486,8 @@ export function ConnectAgentView({
 // ---------------------------------------------------------------------------
 
 const _web = webBaseFromEnv();
-const INSTALL_COMMAND = _web ? `curl -fsSL ${_web}/install.sh | bash` : 'configuration_required';
-const INSTALL_COMMAND_WIN = _web ? `irm ${_web}/install.ps1 | iex` : 'configuration_required';
-const LAUNCHER_MAC = _web ? `${_web}/download/launcher/mac` : '';
-const LAUNCHER_MAC_INTEL = _web ? `${_web}/download/launcher/mac-intel` : '';
-const LAUNCHER_WINDOWS = _web ? `${_web}/download/launcher/windows` : '';
+const INSTALL_COMMAND = SOURCE_INSTALL_COMMAND;
+const INSTALL_COMMAND_WIN = SOURCE_INSTALL_COMMAND;
 
 function deviceIcon(deviceType: string, className?: string) {
   switch (deviceType) {
@@ -634,23 +634,7 @@ function PairingPanel({
             </div>
           )}
           <div className={cn('text-xs font-medium text-muted-foreground', isMobile && 'hidden')}>{t('connect.nodeInstallDesktop')}</div>
-          <div className={cn('grid grid-cols-3 gap-2', isMobile && 'hidden')}>
-            {([
-              { os: t('connect.nodeMacSilicon'), href: LAUNCHER_MAC },
-              { os: t('connect.nodeMacIntel'), href: LAUNCHER_MAC_INTEL },
-              { os: 'Windows', href: LAUNCHER_WINDOWS },
-            ]).map((d) => (
-              <a
-                key={d.os}
-                href={d.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border hover:border-primary/40 hover:bg-primary/[0.03] transition-colors"
-              >
-                <Download className="size-3.5" />{d.os}
-              </a>
-            ))}
-          </div>
+          <CandidateBuildLink className={cn('block rounded-lg border px-3 py-2 text-center text-xs font-medium hover:bg-accent', isMobile && 'hidden')} />
 
           <div className="flex items-center gap-3 py-0.5">
             <span className="h-px flex-1 bg-border" />
@@ -1430,32 +1414,7 @@ function LocalAgentsTab({
               <p className="text-[11px] text-muted-foreground mb-2">
                 {t('connect.optionADescription')}
               </p>
-              <div className="flex gap-2">
-                <a
-                  href={LAUNCHER_MAC}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 text-center px-3 py-2 text-[11px] font-medium rounded-md border hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-                >
-                  {t('connect.nodeMacSilicon')}
-                </a>
-                <a
-                  href={LAUNCHER_MAC_INTEL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 text-center px-3 py-2 text-[11px] font-medium rounded-md border hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-                >
-                  {t('connect.nodeMacIntel')}
-                </a>
-                <a
-                  href={LAUNCHER_WINDOWS}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 text-center px-3 py-2 text-[11px] font-medium rounded-md border hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-                >
-                  Windows
-                </a>
-              </div>
+              <CandidateBuildLink className="block text-center px-3 py-2 text-xs font-medium rounded-md border hover:bg-accent transition-colors" />
             </div>
 
             <div className="flex items-center gap-3">
