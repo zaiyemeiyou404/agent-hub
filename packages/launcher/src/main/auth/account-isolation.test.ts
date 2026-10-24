@@ -119,6 +119,7 @@ describe("AccountManager credential service binding", () => {
     const account = manager(() => "https://api.example.com")
     await expect(account.bearer()).resolves.toBe("renewed-token")
     expect(stored?.boundApiBase).toBe("https://api.example.com")
+    expect(account.embeddedSession()?.apiBase).toBe("https://api.example.com")
     const calls: string[] = []
     vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
       calls.push(String(url))

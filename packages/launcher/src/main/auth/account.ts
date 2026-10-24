@@ -224,6 +224,7 @@ export class AccountManager {
    * first so what is planted is freshly renewed.
    */
   embeddedSession(): {
+    apiBase: string
     token: string
     email: string
     displayName: string | null
@@ -239,7 +240,7 @@ export class AccountManager {
     }
     if (!tokenForService({ apiBase: this._session.boundApiBase, token: this._session.token }, current)) return null
     const { token, email, displayName, expiresAt } = this._session
-    return { token, email, displayName, expiresAt }
+    return { token, email, displayName, expiresAt, apiBase: current }
   }
 
   private _captchaConfig: { value: CaptchaConfig; at: number } | null = null

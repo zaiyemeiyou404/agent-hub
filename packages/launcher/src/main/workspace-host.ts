@@ -45,6 +45,7 @@ export interface ViewBounds {
 }
 
 export interface EmbeddedSession {
+  apiBase: string
   token: string
   email: string
   displayName: string | null

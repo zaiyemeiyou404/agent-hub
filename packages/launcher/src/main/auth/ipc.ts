@@ -10,7 +10,7 @@ import {
 import { openExternalSafely } from "../web-security"
 import { WorkspaceHost, type ViewBounds } from "../workspace-host"
 import { AccountManager, type AccountWorkspace } from "./account"
-import { webBase } from "./endpoints"
+import { accountApiBase, apiBase, webBase } from "./endpoints"
 import { ConfigurationRequiredError } from "./service-endpoints"
 import type { AccountInfo } from "./session-store"
 import type { NodeStatus } from "../agent-manager"
@@ -23,9 +23,9 @@ import { pushNotification } from "../notifications"
  * it, so a machine that never signs in never reaches this file.
  */
 
-function configuredWeb(): string {
+function configuredOrigin(read: () => string): string {
   try {
-    return webBase()
+    return read()
   } catch (err) {
     if (err instanceof ConfigurationRequiredError) return ""
     throw err
@@ -246,8 +246,10 @@ export function registerAccountIpc(deps: AccountIpcDeps): AccountManager {
     const { theme, language } = deps.appearance()
     event.returnValue = {
       session: host.currentSession(),
-      apiUrl: deps.endpoint(),
-      webUrl: configuredWeb(),
+      apiUrl: configuredOrigin(() => apiBase(deps.endpoint())),
+      webUrl: configuredOrigin(() => webBase()),
+      authUrl: configuredOrigin(() => accountApiBase()),
+      devLoopback: process.env.AGHUB_DEV_LOOPBACK === "1",
       theme,
       locale: toWorkspaceLocale(language),
     }

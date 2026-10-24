@@ -32,7 +32,7 @@ vi.mock("./account", () => ({
   AccountManager: class {
     constructor(deps: { onChange: (info: unknown) => void }) { fakes.accountDeps = deps }
     getAccount() { return { email: "person@example.test" } }
-    embeddedSession() { return { token: "renewed", email: "person@example.test", displayName: null, expiresAt: 1 } }
+    embeddedSession() { return { apiBase: "https://api.example.test", token: "renewed", email: "person@example.test", displayName: null, expiresAt: 1 } }
     bearer = fakes.bearer
     signOut = fakes.signOut
     createPairingCode = fakes.createPairingCode
@@ -259,4 +259,24 @@ it("gives the page the web origin even when the API endpoint is a different host
   } finally {
     delete process.env.OPENAGENTS_WORKSPACE_WEB_BASE
   }
+})
+
+it("forwards explicit local auth and development configuration to preload", () => {
+  vi.stubEnv("AGHUB_DEV_LOOPBACK", "1")
+  vi.stubEnv("OPENAGENTS_WORKSPACE_WEB_BASE", "http://127.0.0.1:13000")
+  vi.stubEnv("OPENAGENTS_ACCOUNT_API_BASE", "http://127.0.0.1:18000")
+  try {
+    registerAccountIpc({
+      appearance: () => ({ theme: "system", language: "en" }),
+      setAppearance: fakes.setAppearance, endpoint: () => "http://127.0.0.1:18000",
+      getWindow: () => ({ webContents: { send: fakes.send } }) as never,
+      connectNode: fakes.connectNode, nodeStatus: fakes.nodeStatus,
+    })
+    const event: { returnValue?: unknown } = {}
+    fakes.listeners.get("workspace-view:config")!(event)
+    expect(event.returnValue).toMatchObject({
+      apiUrl: "http://127.0.0.1:18000", webUrl: "http://127.0.0.1:13000",
+      authUrl: "http://127.0.0.1:18000", devLoopback: true,
+    })
+  } finally { vi.unstubAllEnvs() }
 })

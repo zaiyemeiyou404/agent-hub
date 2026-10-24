@@ -52,3 +52,26 @@
 - 没有生成签名密钥，没有商店注册，应用标识没有改成 `com.zaiyemeiyou.aghub`。
 - 原仓库 `G:\projects\aghub` 与 Android 产物未修改。
 - 后端 `EMAIL_FROM` 默认值、SDK `DEFAULT_ENDPOINT`、营销和 e2e 脚本里的历史官方地址不在这次复核的六项里，不能据此声称所有官方字符串已经消失。
+
+## 2026-10-24 Codex 二次复核与修复
+
+对 `2007f091efcb05f0a95086788bf6135aba6ffc98` 独立复核后，发现并修复两处 P1：
+
+- 桌面 Vite 构建未映射新增配置环境字段，页面导入 `service-endpoints.ts` 时触发 `ReferenceError: process is not defined`。现在 API/Web/Auth/开发开关均由主进程经预加载桥显式传递，Vite 不依赖页面中的 Node `process`；HTML 官方默认地址已移除，桌面也使用配置门禁。
+- 共享前端持久会话没有签发服务元数据，修改同一 Web origin 的 API 配置后会把旧 token 发往新 API。现在保存/恢复和桌面初始/实时会话都验证 `apiBase`；无来源或跨服务旧会话要求重新登录。同一服务的正常会话与刷新仍可用。此元数据不改变后端 JWT 或 schema。
+
+先增加两个回归文件，修复前 9 个用例中 8 个失败，分别复现浏览器构建异常、旧会话跨服务复用、来源缺失及缺配置仍发 handoff 请求。修复后，以下为本次 Codex 实际执行结果：
+
+| 检查 | 结果 |
+| --- | --- |
+| 前端会话恢复/请求、实际 Vite 配置生成的无 `process` 浏览器产物、端点/重写/分享/刷新和桌面路由 | 8 files，35 passed |
+| Launcher 原认证/隔离、Host/IPC 与新增预加载桥初始及实时会话用例 | 8 files，89 passed |
+| Frontend `tsc --noEmit --incremental false` | exit 0 |
+| Launcher `tsc -b` | exit 0 |
+| 完整共享页面 `vite build` | exit 0，4933 modules，15.92 秒；产物 `workspace/frontend/dist-desktop` |
+| `check-workspace-bundle.mjs` | 通过 |
+| Launcher `electron-vite build` | main、preload、renderer 均 exit 0，预加载桥包含新配置/会话来源合同 |
+
+合计 124 个相关定向用例通过。前端刷新用例显式配置合成 API；缺 Web/Auth 配置的负向用例保留空配置，未靠改变产品默认值使测试通过。日志/缓存目录为 `G:\codex日常\tmp\aghub-fix-2007f09`、`G:\codex日常\tmp\aghub-review-2007f09`。复核复现为 mock HTTP，桌面配置产物在没有 Node 全局变量的隔离浏览器上下文中执行，不涉及真实身份。
+
+本轮没有重跑无改动的 Connector 全量套件或后端，没有重建 Next 服务镜像，没有运行 Windows 安装包或交互式 Electron 真机验收。没有迁移、推送、合并或部署；T00/T01 的人审与整产品门禁仍保持原限制。

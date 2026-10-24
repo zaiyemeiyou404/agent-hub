@@ -108,7 +108,7 @@ describe('shared workspace host', () => {
   })
   it('pushes a renewed session to the loaded page', () => {
     const host = makeHost(); host.show(null, bounds)
-    const session = { token:'renewed', email:'person@example.test', displayName:null, expiresAt:1 }
+    const session = { apiBase:'https://api.example.test', token:'renewed', email:'person@example.test', displayName:null, expiresAt:1 }
     host.sendSession(session)
     expect(fakes.contents.send).toHaveBeenCalledWith('workspace-view:session', session)
   })

@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { capture, identify } from './analytics';
 import { desktopHost } from './desktop-host';
 import { workspaceApi } from './api';
-import { clearWorkspaceSession, loadWorkspaceSession } from './workspace-session';
+import { clearWorkspaceSession, isCurrentWorkspaceSession, loadWorkspaceSession } from './workspace-session';
 
 interface OpenAgentsUser {
   email: string;
@@ -157,6 +157,7 @@ export function OpenAgentsAuthProvider({ children }: { children: React.ReactNode
   // In the desktop app the launcher owns the session and pushes renewals here;
   // the page never decides on its own that the account has ended.
   useEffect(() => desktopHost()?.onSession?.((session) => {
+    if (!isCurrentWorkspaceSession(session)) return;
     setUser({ email: session.email, displayName: session.displayName || session.email, photoURL: null });
     setIdToken(session.token);
   }), []);
