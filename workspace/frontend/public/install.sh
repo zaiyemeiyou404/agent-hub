@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-# Local package install entry. It does not download an official installer.
-echo "No candidate installer is published. Build from source: https://github.com/zaiyemeiyou404/agent-hub/blob/codex/zai-16-independent-endpoints/docs/aghub/install-candidate.md" >&2
+# Candidate entry deliberately performs no remote installation or update.
+printf '%s\n' 'No reviewed AgentHub installer is published. Build and verify the repository candidate: https://github.com/zaiyemeiyou404/agent-hub/blob/codex/zai-17-verified-core/docs/aghub/install-candidate.md' >&2
 exit 1

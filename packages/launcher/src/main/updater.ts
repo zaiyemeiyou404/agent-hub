@@ -504,6 +504,14 @@ export function setupAutoUpdater(opts: {
     _resumeAfterFailedInstall = opts.resumeAfterFailedInstall
   _state.currentVersion = app.getVersion()
   _state.autoDownload = _isAutoUpdateEnabled()
+  registerIpc()
+  // A separate candidate must not initialize another app's updater caches.
+  if (process.env.AGHUB_UPDATE_ENABLED !== "1" ||
+      !updateFeedOrNull(typeof opts.feedUrlOverride === "string" ? opts.feedUrlOverride : undefined, true)) {
+    emit({ supported:false, status:"idle", autoDownload:false })
+    _log("[updater] disabled: no explicitly enabled AgentHub release feed")
+    return
+  }
 
   // Unpackaged builds get the SAME update flow as a release: electron-updater
   // reads dev-app-update.yml (repo root) once forceDevUpdateConfig is set, so
@@ -537,14 +545,20 @@ export function setupAutoUpdater(opts: {
       .app.baseCachePath
   } catch {}
 
-  _cacheRoot = redirectUpdaterCacheToAsciiPath(autoUpdater, _log)
+  const configuredCacheName = readUpdaterCacheDirName(updaterConfigPath())
+  if (configuredCacheName && !/^(aghub-|AgentHub$)/.test(configuredCacheName)) {
+    emit({ supported:false, status:"idle", autoDownload:false })
+    _log("[updater] disabled: updater cache identity is not owned by AgentHub")
+    return
+  }
+  _cacheRoot = redirectUpdaterCacheToAsciiPath(autoUpdater, _log, process.env, "AgentHub")
   const redirected = _cacheRoot !== null
   if (!_cacheRoot) _cacheRoot = previousRoot
   // Ask the adapter for the config path rather than assuming resourcesPath —
   // it resolves to dev-app-update.yml in an unpackaged build, and the cache dir
   // name differs there on purpose.
   _cacheDirName =
-    readUpdaterCacheDirName(updaterConfigPath()) ?? app.getName()
+    configuredCacheName ?? "AgentHub"
 
   // Existing installs on a non-ASCII profile already have a staged package in
   // the old location. Nothing reads it now that the cache moved, so it's a
@@ -552,7 +566,7 @@ export function setupAutoUpdater(opts: {
   // failed to install. Reclaim the space.
   // The app was renamed, so electron-updater now caches under a new directory
   // name; the old one is dead weight on every install that predates 1.0.7.
-  purgeLegacyUpdaterCache([_cacheRoot, previousRoot], LEGACY_CACHE_DIR_NAME, _log)
+  // Legacy OpenAgents caches belong to the original application; preserve them.
 
   if (redirected && previousRoot && _cacheDirName) {
     purgePendingUpdateCache(previousRoot, _cacheDirName, _log)
@@ -613,7 +627,6 @@ export function setupAutoUpdater(opts: {
     debug: () => {},
   }
   wireEvents()
-  registerIpc()
   // After wireEvents so a bad mirror surfaces through the normal error path.
   applyUpdateFeedUrl(opts.feedUrlOverride)
 }

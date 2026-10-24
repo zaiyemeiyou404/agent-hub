@@ -68,7 +68,7 @@ describe('CLI', () => {
 
   it('version', () => {
     const out = run('version');
-    assert.ok(out.includes('@openagents-org/agent-launcher'));
+    assert.ok(out.includes('@zaiyemeiyou/aghub-connector'));
     const pkg = require('../package.json');
     assert.ok(out.includes(pkg.version));
   });

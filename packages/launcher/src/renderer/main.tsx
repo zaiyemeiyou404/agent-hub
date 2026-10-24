@@ -3,6 +3,7 @@ import './i18n'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { ServiceSetup } from './components/service-setup'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { initAnalytics } from './lib/analytics'
 import { initPlatform } from './lib/platform'
@@ -26,7 +27,7 @@ if (!rootEl) throw new Error('Renderer mount point #root not found')
 createRoot(rootEl).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      <ServiceSetup><App /></ServiceSetup>
     </ErrorBoundary>
   </StrictMode>,
 )

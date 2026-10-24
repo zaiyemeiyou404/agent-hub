@@ -23,11 +23,11 @@ import { EventEmitter } from "events"
 import {
   CONFIG_DIR,
   DAEMON_LOG_FILE,
-  GLOBAL_CORE,
+  DAEMON_STATUS_FILE,
   LAUNCHER_SESSIONS_DIR,
   ensureDir,
 } from "./agents/paths"
-import { loadCore, readCoreVersion } from "./agents/runtime"
+import { loadCore, readCoreVersion, getVerifiedCore } from "./agents/runtime"
 import {
   AMP_LOGGED_OUT,
   CORE_AGENTS,
@@ -69,6 +69,7 @@ import {
   readDaemonState,
   startDaemon,
 } from "./agents/daemon-process"
+import { assertDaemonCoreIdentity } from "./agents/daemon-identity"
 import { HealthResolver, type HealthResolverDeps } from "./agents/health"
 import {
   InstallService,
@@ -323,8 +324,7 @@ export class AgentManager extends EventEmitter {
     return {
       version: this.coreVersion,
       supportedTypes: this.getSupportedAgentTypes(),
-      globalCorePath: GLOBAL_CORE,
-      globalCorePresent: fs.existsSync(path.join(GLOBAL_CORE, "package.json")),
+      core: getVerifiedCore(),
     }
   }
 
@@ -1256,7 +1256,7 @@ export class AgentManager extends EventEmitter {
 
     try {
       if (agentType === "openclaw") {
-        const OpenClawAdapter = require("@openagents-org/agent-launcher/src/adapters/openclaw")
+        const OpenClawAdapter = require(path.join(getVerifiedCore().directory, "src", "adapters", "openclaw.js"))
         OpenClawAdapter.configureNativeAuth(env)
       }
     } catch (e) {
@@ -2770,9 +2770,11 @@ export class AgentManager extends EventEmitter {
   }
 
   private _getLiveDaemonPid(): number | null {
-    return getLiveDaemonPid(this._connector, () => {
+    const pid = getLiveDaemonPid(this._connector, () => {
       this._statusCache = { value: {}, at: 0 }
     })
+    if (pid) assertDaemonCoreIdentity(JSON.parse(fs.readFileSync(DAEMON_STATUS_FILE, "utf8")), getVerifiedCore())
+    return pid
   }
 
   private _startDaemon(): { success: boolean; pid?: number; message: string } {

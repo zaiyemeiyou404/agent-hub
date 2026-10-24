@@ -274,7 +274,7 @@
   "data": {
     "locationsGroup": "Storage locations",
     "userData": "App data",
-    "openagentsHome": "OpenAgents home",
+    "openagentsHome": "AgentHub home",
     "logs": "Logs",
     "downloads": "Downloads",
     "cache": "Cache",
@@ -345,7 +345,7 @@
     "versionsGroup": "Versions",
     "nodejs": "Node.js",
     "npm": "npm",
-    "coreLibrary": "OpenAgents Core",
+    "coreLibrary": "AgentHub Core",
     "latestAvailable": "Latest available",
     "unableToCheck": "Unable to check",
     "ok": "OK",

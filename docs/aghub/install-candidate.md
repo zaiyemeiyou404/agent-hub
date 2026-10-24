@@ -1,6 +1,6 @@
 # AgentHub candidate: build from source
 
-This is the ZAI-16 review candidate, not a published installer release. There
+This is the ZAI-17 core review candidate, not a published installer release. There
 are no owned Windows/macOS/Linux installer downloads or automatic install
 scripts for this candidate yet. Do not substitute an upstream release.
 
@@ -14,7 +14,7 @@ shims; macOS/Linux use its `bin` subdirectory. A custom prefix needs its own
 `PATH` entry in the current shell before running `agn`.
 
 ```text
-git clone --branch codex/zai-16-independent-endpoints --single-branch https://github.com/zaiyemeiyou404/agent-hub.git aghub
+git clone --branch codex/zai-17-verified-core --single-branch https://github.com/zaiyemeiyou404/agent-hub.git aghub
 cd aghub
 npm --prefix packages/agent-connector ci
 cd packages/agent-connector
@@ -77,3 +77,58 @@ private. There is no official host fallback.
 This build guide does not authorize database migrations, deployment, signing,
 or production changes. Installer interaction and independent review are still
 required before marking T01 complete.
+
+## Verified Windows core and standalone server bundle
+
+Commit the candidate changes before building; the core build records the source
+commit and refuses an uncommitted Connector tree. An exported source archive
+must supply `AGHUB_SOURCE_SHA` from the reviewed archive commit. Do not use this
+variable to hide local modifications.
+
+`npm run build` stages the repository Connector and its installed locked runtime
+dependencies into `packages/launcher/.aghub-core/core`, with `manifest.json`
+beside it. No upstream core package is downloaded. The manifest has a closed
+file list with SHA-256 hashes and fixed main/CLI entrypoints. The packaged app
+embeds its trusted manifest in app.asar and checks the external CLI copy too.
+Staging hashes the installed bytes; it does not independently re-verify npm
+tarball integrity. A fresh successful `npm ci` with the committed lockfiles is
+a required build prerequisite, and its logs must accompany acceptance.
+
+From `packages/launcher`, build an unsigned Windows x64 NSIS test artifact:
+
+```text
+node node_modules/electron-builder/cli.js --win nsis --x64 --publish never --config.win.signExecutable=false --config.win.signAndEditExecutable=false --config.forceCodeSigning=false
+```
+
+Set `CSC_IDENTITY_AUTO_DISCOVERY=false` and use a clean environment without
+certificate/signing credentials. Record the resulting installer SHA-256 and
+`Get-AuthenticodeSignature` result; a successful command does not prove unsigned.
+
+For a self-built server bundle (Node.js 20+ already installed), archive the
+entire `.aghub-core` directory after the verified build. Transfer it as a
+reviewed artifact with its separately recorded archive hash, not as an npm
+registry update. On the server, extract both `core/` and `manifest.json` as
+siblings, then run:
+
+```text
+node core/bin/agent-connector.js core-info
+node core/bin/agent-connector.js --help
+```
+
+For the installed Windows package, the same CLI is at
+`<install>/resources/aghub-core/bin/agent-connector.js`; the manifest is
+`<install>/resources/aghub-core-manifest.json`. `core-info` must report the
+same source SHA/version/directory as the Launcher startup log and daemon status.
+Copying only `core/` loses the verified release boundary; preserve the manifest.
+Source `npm link` remains a development command and reports `sourceSha: null`,
+not an independently verified release. `agn update` cannot replace this core.
+
+The app now uses product name AgentHub and appId `com.zaiyemeiyou.aghub`.
+Existing OpenAgents profiles and caches remain in place; they are not silently
+moved, overwritten, or used as executable cores. Legacy data import is T09.
+An already running daemon with a missing/different core identity blocks new
+dispatch and must be stopped deliberately before using this candidate.
+
+Unsigned integrity manifests detect packaging corruption and source drift;
+they do not prove publisher authenticity against someone who can replace the
+entire unsigned application. Signing and human release review remain separate.

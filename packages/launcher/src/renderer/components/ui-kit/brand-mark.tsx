@@ -29,11 +29,14 @@ export function BrandMark({
   const dark = variant === "auto" ? resolved === "dark" : variant === "white"
 
   return (
-    <img
-      src={dark ? "logo-white.png" : "logo-black.png"}
-      alt="OpenAgents"
-      draggable={false}
-      className={cn("shrink-0 select-none object-contain", className)}
-    />
+    <svg viewBox="0 0 32 32" role="img" aria-label="AgentHub"
+      className={cn("shrink-0 select-none", dark ? "text-white" : "text-black", className)}>
+      <path d="M16 16 6 6m10 10L26 6M16 16 6 26m10-10 10 10" stroke="currentColor" strokeWidth="3" />
+      <circle cx="16" cy="16" r="6" fill="currentColor" />
+      <circle cx="6" cy="6" r="4" fill="currentColor" />
+      <circle cx="26" cy="6" r="4" fill="currentColor" />
+      <circle cx="6" cy="26" r="4" fill="currentColor" />
+      <circle cx="26" cy="26" r="4" fill="currentColor" />
+    </svg>
   )
 }

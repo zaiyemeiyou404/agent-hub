@@ -176,6 +176,7 @@ class Config {
   }
 
   writeCommand(cmd) {
+    require('./core-identity').assertCompatibleDaemon(this.configDir);
     fs.writeFileSync(this.cmdFile, cmd + '\n', 'utf-8');
   }
 

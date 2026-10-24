@@ -1,4 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest"
+it("owned cache roots keep AgentHub out of legacy OpenAgents directories", () => {
+  const roots = asciiCacheRootCandidates({ ProgramData:"C:\\ProgramData", SystemDrive:"C:" }, "AgentHub")
+  expect(roots[0]).toBe(path.join("C:\\ProgramData", "AgentHub", "updater-cache"))
+  expect(roots.every(root => !root.includes("OpenAgents"))).toBe(true)
+})
 import {
   existsSync,
   mkdirSync,

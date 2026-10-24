@@ -54,11 +54,9 @@ import { getGitHubClient, parseGitHubRepo } from "./github-bridge"
 import { GitHubBindingsStore } from "./github-bindings-store"
 import {
   npmUrls,
-  npmRegistryBase,
 } from "./mirror"
 import {
   downloadToFile,
-  fetchJsonRacing,
 } from "./download"
 import { t, getMainLanguage, setMainLanguage } from "./i18n"
 import { asPath, asName, asShellCommand, asString } from "./ipc-input"
@@ -78,14 +76,13 @@ import {
 } from "./notifications"
 import { PORTABLE_NODE_DIR } from "./agents/paths"
 import { stopLeftoverDaemon } from "./agents/daemon-process"
-import { bundledCoreDir, readCoreVersion } from "./agents/runtime"
+import { getVerifiedCore, readCoreVersion } from "./agents/runtime"
 import {
   markUiReached,
   reportStartupError,
   slog,
   STARTUP_LOG,
 } from "./bootstrap/startup-log"
-import { migrateLegacyUserData } from "./user-data-migration"
 import { InstallProgress } from "./install-progress"
 import {
   configuredControlPort,
@@ -107,7 +104,6 @@ import {
   applyProxyFromSettings,
   adoptSystemProxyForChildren,
   proxyEnvForChildren,
-  tuneNpmRegistry,
 } from "./net-config"
 import { hardenWebContents, openExternalSafely } from "./web-security"
 import { installApplicationMenu, isReloadShortcut } from "./app-menu"
@@ -121,13 +117,11 @@ import {
   titleBarOverlayColors,
 } from "./window-chrome"
 import {
-  addToPrefixPackageJson,
   canExecuteNodeBinary,
   downloadNodejs,
   ensureBundledRuntimeFirstOnPath,
   ensureUserBinDirsOnPath,
   extractTarball,
-  findNpmCommand,
   nodeBinaryIn,
   nodeBinaryVersion,
 } from "./bootstrap/node-runtime"
@@ -165,18 +159,8 @@ function execFileAsync(
 }
 
 
-// The app was renamed from "OpenAgents Launcher" to "OpenAgents". Electron
-// derives userData from this name, so the old profile has to be moved across
-// BEFORE the name is set and before anything reads a path from it.
-{
-  const result = migrateLegacyUserData(
-    app.getPath("appData"),
-    "OpenAgents Launcher",
-    "OpenAgents",
-  )
-  if (result !== "skipped") slog(`userData migration: ${result}`)
-}
-app.setName("OpenAgents")
+// Own application identity. Legacy profiles stay intact for explicit T09 import.
+app.setName("AgentHub")
 
 // Before anything can spawn: a GUI process inherits a shell-less PATH, and the
 // core's installer builds its child env from ours. Without this, an agent whose
@@ -208,16 +192,6 @@ if (devtoolsPort && /^\d+$/.test(devtoolsPort)) {
 const isHeadless = process.argv.includes("--headless")
 if (process.argv.includes("--disable-gpu") || isHeadless) {
   app.disableHardwareAcceleration()
-}
-
-const GLOBAL_MODULES = path.join(PORTABLE_NODE_DIR, "node_modules")
-const CORE_PKG = "@openagents-org/agent-launcher"
-
-if (
-  fs.existsSync(GLOBAL_MODULES) &&
-  !require("module").globalPaths.includes(GLOBAL_MODULES)
-) {
-  require("module").globalPaths.push(GLOBAL_MODULES)
 }
 
 /**
@@ -356,234 +330,11 @@ let _updateSplash:
   | ((msg: string, pct: number, detail?: string) => void)
   | null = null
 
-/** Version of the core packaged inside the app, or null if unreadable. */
-function bundledCoreVersion(): string | null {
-  const dir = bundledCoreDir()
-  if (!dir) return null
-  try {
-    const v = JSON.parse(
-      fs.readFileSync(path.join(dir, "package.json"), "utf-8"),
-    ).version
-    return typeof v === "string" && v ? v : null
-  } catch {
-    return null
-  }
-}
-
 async function ensureCoreLibrary(): Promise<void> {
-  const corePkgPath = path.join(GLOBAL_MODULES, CORE_PKG, "package.json")
-  let installedVersion: string | null = null
-
-  if (fs.existsSync(corePkgPath)) {
-    try {
-      installedVersion = JSON.parse(
-        fs.readFileSync(corePkgPath, "utf-8"),
-      ).version
-    } catch {}
-  }
-
-  try {
-    // Raced across registries with a hard timeout. The previous lookup used a
-    // bare https.get with NO timeout, so a registry that accepted the socket
-    // and then went silent parked the splash on "Checking for updates…" with
-    // nothing to time it out — indistinguishable from a hang.
-    const meta = await fetchJsonRacing<{
-      version?: string
-      dist?: { integrity?: string }
-    }>(npmUrls(`${CORE_PKG}/latest`), { log: slog })
-    const latestVersion = meta?.version
-    if (!latestVersion) throw new Error("core latest lookup failed")
-
-    // Never spend a download on a core we would then ignore. The app ships its
-    // own copy and runs whichever is newer (see coreTiers), so an npm `latest`
-    // that trails the packaged core is not an update — it is a downgrade the
-    // loader would discard anyway. This is the registry's normal state in the
-    // window between a core landing in the app and its publish going out.
-    const bundledVersion = bundledCoreVersion()
-    const npmIsUpgrade =
-      !bundledVersion || isUpgradeAvailable(bundledVersion, latestVersion)
-
-    if (!npmIsUpgrade) {
-      slog(
-        `Core library: keeping the v${bundledVersion} bundled with the app (npm latest is v${latestVersion})`,
-      )
-      if (_updateSplash)
-        _updateSplash("Core library ready", 80, "v" + bundledVersion)
-    } else if (!installedVersion) {
-      slog("Core library not found — installing v" + latestVersion + "...")
-      if (_updateSplash)
-        _updateSplash("Installing core library...", 65, "v" + latestVersion)
-    } else if (latestVersion !== installedVersion) {
-      slog("Core library update: v" + installedVersion + " → v" + latestVersion)
-      if (_updateSplash)
-        _updateSplash(
-          "Updating core library...",
-          65,
-          "v" + installedVersion + " → v" + latestVersion,
-        )
-    } else {
-      slog("Core library v" + installedVersion + " (already latest)")
-      if (_updateSplash)
-        _updateSplash("Core library up to date", 80, "v" + installedVersion)
-    }
-
-    if (
-      npmIsUpgrade &&
-      (!installedVersion || latestVersion !== installedVersion)
-    ) {
-      const tgzPath = path.join(
-        os.tmpdir(),
-        `agent-launcher-${latestVersion}.tgz`,
-      )
-      const destDir = path.join(GLOBAL_MODULES, CORE_PKG)
-
-      // The registry publishes the tarball's integrity hash; enforcing it means
-      // a mirror can serve the bytes faster but cannot serve different bytes.
-      await downloadToFile(
-        npmUrls(`${CORE_PKG}/-/agent-launcher-${latestVersion}.tgz`),
-        tgzPath,
-        {
-          expectedIntegrity: meta?.dist?.integrity || null,
-          onProgress: _updateSplash
-            ? (pct, detail) =>
-                _updateSplash?.(
-                  "Downloading core library...",
-                  65 + pct * 0.1,
-                  detail,
-                )
-            : null,
-          log: slog,
-        },
-      )
-      try {
-        fs.rmSync(destDir, { recursive: true, force: true })
-      } catch {}
-      fs.mkdirSync(destDir, { recursive: true })
-      extractTarball(tgzPath, destDir)
-      try {
-        fs.unlinkSync(tgzPath)
-      } catch {}
-
-      const newVersion = (() => {
-        try {
-          return JSON.parse(fs.readFileSync(corePkgPath, "utf-8")).version
-        } catch {
-          return null
-        }
-      })()
-      if (newVersion) {
-        slog("Core library installed: v" + newVersion)
-        if (_updateSplash)
-          _updateSplash("Core library ready", 80, "v" + newVersion)
-        installedVersion = newVersion
-        addToPrefixPackageJson(CORE_PKG, newVersion)
-      }
-    }
-  } catch (e: unknown) {
-    slog("Core update failed: " + (e as Error).message)
-    if (!installedVersion && !bundledCoreVersion()) {
-      slog("Falling back to npm...")
-      const npmCmd = findNpmCommand()
-      if (npmCmd) {
-        try {
-          // Asynchronous: an npm install takes up to two minutes, and a
-          // synchronous one froze the splash for all of it.
-          await execFileAsync(
-            npmCmd.bin,
-            [
-              ...npmCmd.preArgs,
-              "install",
-              "--prefix",
-              PORTABLE_NODE_DIR,
-              `${CORE_PKG}@latest`,
-              "--ignore-scripts",
-              "--registry",
-              npmRegistryBase(),
-            ],
-            {
-              timeout: 120000,
-              maxBuffer: 16 * 1024 * 1024,
-              env: withPathEnv(
-                PORTABLE_NODE_DIR +
-                  (process.platform === "win32" ? ";" : ":") +
-                  readPathEnv(),
-              ),
-            },
-          )
-          try {
-            installedVersion = JSON.parse(
-              fs.readFileSync(corePkgPath, "utf-8"),
-            ).version
-          } catch {}
-        } catch {}
-      }
-    }
-  }
-
-  // What the app will actually load, which is not necessarily what sits in the
-  // portable prefix — see coreTiers.
-  coreVersion = readCoreVersion() || installedVersion
-
-  const npmCheck = path.join(
-    PORTABLE_NODE_DIR,
-    "node_modules",
-    "npm",
-    "bin",
-    "npm-cli.js",
-  )
-  if (!fs.existsSync(npmCheck)) {
-    slog("npm was removed by --prefix install — reinstalling...")
-    try {
-      const npmTgz = path.join(os.tmpdir(), "npm-reinstall.tgz")
-      const npmDir = path.join(PORTABLE_NODE_DIR, "node_modules", "npm")
-      await downloadToFile(npmUrls(`npm/-/npm-${NPM_VERSION}.tgz`), npmTgz, {
-        log: slog,
-      })
-      fs.mkdirSync(npmDir, { recursive: true })
-      extractTarball(npmTgz, npmDir)
-      try {
-        fs.unlinkSync(npmTgz)
-      } catch {}
-      slog("npm reinstalled")
-    } catch (e: unknown) {
-      slog("npm reinstall failed: " + (e as Error).message)
-    }
-  }
-
-  if (installedVersion && agentManager) {
-    agentManager.reloadCore()
-  }
-}
-
-async function checkCoreUpdate(): Promise<void> {
-  const npmCmd = findNpmCommand()
-  if (!npmCmd) return
-  try {
-    // Asynchronous: `npm view` is a registry round-trip behind a second of npm
-    // startup, and done synchronously it froze the window for up to its 15s
-    // timeout — 30s after every launch and every four hours after that.
-    const latest = await execFileAsync(
-      npmCmd.bin,
-      [...npmCmd.preArgs, "view", CORE_PKG, "version"],
-      {
-        timeout: 15000,
-        env: withPathEnv(
-          PORTABLE_NODE_DIR +
-            (process.platform === "win32" ? ";" : ":") +
-            readPathEnv(),
-        ),
-      },
-    )
-
-    if (coreVersion && latest && latest !== coreVersion) {
-      if (mainWindow) {
-        mainWindow.webContents.send("core-update-available", {
-          current: coreVersion,
-          latest,
-        })
-      }
-    }
-  } catch {}
+  const core = getVerifiedCore(true)
+  coreVersion = core.version
+  slog("Verified AgentHub core version=" + core.version + " source=" + core.sourceSha + " directory=" + core.directory)
+  _updateSplash?.("AgentHub core verified", 80, "v" + core.version)
 }
 
 function createWindow(): void {
@@ -604,7 +355,7 @@ function createWindow(): void {
     minHeight: Math.min(600, workArea.height),
     width: Math.min(1200, workArea.width),
     height: Math.min(800, workArea.height),
-    title: "OpenAgents",
+    title: "AgentHub",
     autoHideMenuBar: true,
     // The app draws its own top edge. The system title bar was a grey plate
     // above a themed app, repeating a name and icon the rail already shows —
@@ -1089,15 +840,7 @@ async function refreshRuntimeInfo(force = false): Promise<RuntimeInfo> {
     }
 
     if (needLatest) {
-      if (npm) {
-        try {
-          info.latestVersion = await execFileAsync(
-            npm.node,
-            [...npm.args, "view", CORE_PKG, "version"],
-            { timeout: 10_000, env },
-          )
-        } catch {}
-      }
+      info.latestVersion = null
       _runtimeCache.latestAt = now
     }
   } finally {
@@ -2249,47 +1992,9 @@ function setupIPC(): void {
     }
   })
 
-  ipcMain.handle("core:update", async () => {
-    // Run bundled `node npm-cli.js` directly (no shell, argv array) so a
-    // non-ASCII home path survives on Windows — the `.cmd` shim does not.
-    const npm = resolveNpmInvocation()
-    if (!npm) return { success: false, error: "npm runtime not found" }
-    try {
-      await execFileAsync(
-        npm.node,
-        [
-          ...npm.args,
-          "install",
-          "--prefix",
-          PORTABLE_NODE_DIR,
-          `${CORE_PKG}@latest`,
-          "--ignore-scripts",
-        ],
-        {
-          timeout: 120000,
-          maxBuffer: 64 * 1024 * 1024,
-          env: withPathEnv(
-            PORTABLE_NODE_DIR +
-              (process.platform === "win32" ? ";" : ":") +
-              readPathEnv(),
-          ),
-        },
-      )
-      // Report what will actually load, not merely what npm just wrote: when
-      // the published core trails the one packaged with the app, the app's copy
-      // is still the one that runs. See coreTiers.
-      coreVersion = readCoreVersion()
-      if (agentManager) {
-        try {
-          await agentManager.stopAll()
-        } catch {}
-        agentManager._ensureDaemon().catch(() => {})
-      }
-      return { success: true, version: coreVersion }
-    } catch (e: unknown) {
-      return { success: false, error: (e as Error).message }
-    }
-  })
+  ipcMain.handle("core:update", async () => ({ success: false,
+    error: "Core updates require a reviewed AgentHub build. In-place registry updates are disabled.",
+  }))
 
   // Only ever hand web URLs to the OS. Without this guard the renderer could
   // pass `file:///…` to open arbitrary local paths, or a registered custom
@@ -2408,7 +2113,7 @@ function setupIPC(): void {
         // wrong and dies with "The system cannot find the path specified." The
         // BOM + `chcp 65001` together make non-ASCII paths in the script work.
         fs.writeFileSync(tmpCmd, "﻿" + lines.join("\r\n"), "utf-8")
-        exec(`start "OpenAgents Login" cmd /K "${tmpCmd}"`, {
+        exec(`start "AgentHub Login" cmd /K "${tmpCmd}"`, {
           stdio: "ignore",
           shell: true,
           // The one place a console window IS the feature — the user signs in
@@ -2618,13 +2323,13 @@ function setupIPC(): void {
   })
 
   ipcMain.handle("icons:get-dir", () => {
-    const coreIconsDir = path.join(GLOBAL_MODULES, CORE_PKG, "icons")
+    const coreIconsDir = path.join(getVerifiedCore().directory, "icons")
     if (fs.existsSync(coreIconsDir)) return coreIconsDir
     return null
   })
   ipcMain.handle("icons:get-path", (_e, name) => {
     const slug = (name || "").toLowerCase().replace(/[^a-z0-9-]/g, "")
-    const coreIcon = path.join(GLOBAL_MODULES, CORE_PKG, "icons", `${slug}.svg`)
+    const coreIcon = path.join(getVerifiedCore().directory, "icons", `${slug}.svg`)
     if (fs.existsSync(coreIcon)) return coreIcon
     return null
   })
@@ -2827,9 +2532,7 @@ app.whenReady().then(async () => {
   // Measure which npm registry actually answers, in the background: it only
   // has to be settled before the first agent install, which is minutes away
   // behind onboarding, and awaiting it here would delay the splash for nothing.
-  const registryTuning = tuneNpmRegistry(store, CORE_PKG).catch((e: unknown) => {
-    slog(`npm registry probe failed: ${(e as Error).message}`)
-  })
+  // Registry probing is only for optional agent installs, never core startup.
 
   setupIPC()
   setupAutoUpdater({
@@ -2898,15 +2601,7 @@ app.whenReady().then(async () => {
   })
   createTray()
 
-  // NOTE: We deliberately do NOT wipe derived caches (agent catalog + the
-  // downloaded core library) on an app upgrade. Clearing the core forced
-  // ensureCoreLibrary() to re-download it on the next launch, and whenever
-  // that download failed (offline, proxy/VPN, AV-blocked) the in-process
-  // connector stayed null — so onboarding's first install died at the
-  // "preparing the installer" step with no obvious cause. ensureCoreLibrary()
-  // already self-heals a stale core (it compares the installed version against
-  // npm `latest` and reinstalls when they differ), so the pre-emptive wipe was
-  // pure downside. The previously-installed core keeps working across upgrades.
+  // Preserve legacy caches/configuration. They are never executable core sources.
 
   // Detect a working bundled node, not just file presence. A previous
   // download interrupted by ECONNRESET leaves a corrupt node.exe at the
@@ -2979,7 +2674,7 @@ app.whenReady().then(async () => {
     // stuck on a colour nothing else in the app uses.
     const splashHtml = `
       <html><body style="margin:0;font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:${c.bg};color:${c.title};">
-        <div style="font-size:28px;font-weight:700;margin-bottom:8px;">OpenAgents</div>
+        <div style="font-size:28px;font-weight:700;margin-bottom:8px;">AgentHub</div>
         <div id="msg" style="font-size:14px;color:${c.msg};margin-bottom:20px;">${!nodeExists ? "Preparing first launch..." : "Starting..."}</div>
         <div style="width:240px;height:6px;background:${c.track};border-radius:3px;overflow:hidden;">
           <div id="bar" style="width:10%;height:100%;background:${c.accent};border-radius:3px;transition:width 0.5s;"></div>
@@ -3138,17 +2833,7 @@ app.whenReady().then(async () => {
     }
   }
 
-  // The core install's npm fallback path shells out to npm, so let the probe
-  // land first — by now it has almost certainly already finished.
-  await registryTuning
   await ensureCoreLibrary()
-
-  if (
-    fs.existsSync(GLOBAL_MODULES) &&
-    !require("module").globalPaths.includes(GLOBAL_MODULES)
-  ) {
-    require("module").globalPaths.push(GLOBAL_MODULES)
-  }
 
   if (splash && !splash.isDestroyed()) {
     splash.webContents
@@ -3199,10 +2884,7 @@ app.whenReady().then(async () => {
 
   setInterval(() => updateTrayMenu(), 5000)
 
-  const FOUR_HOURS = 4 * 60 * 60 * 1000
   const ONE_HOUR = 60 * 60 * 1000
-  setInterval(() => checkCoreUpdate().catch(() => {}), FOUR_HOURS)
-  setTimeout(() => checkCoreUpdate().catch(() => {}), 30000)
 
   // Launcher self-update: check shortly after launch and every half hour
   // thereafter. Surfaces a banner in the renderer; whether the download starts

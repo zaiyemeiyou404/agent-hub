@@ -61,11 +61,7 @@ function print(msg) { process.stdout.write(msg + '\n'); }
 // text. 47 columns wide, so it fits any 80-column terminal.
 // ---------------------------------------------------------------------------
 const OA_LOGO = [
-  '  ____                ___                __    ',
-  ' / __ \\___  ___ ___  / _ |___ ____ ___  / /____',
-  '/ /_/ / _ \\/ -_) _ \\/ __ / _ `/ -_) _ \\/ __(_-<',
-  '\\____/ .__/\\__/_//_/_/ |_\\_, /\\__/_//_/\\__/___/',
-  '    /_/                 /___/                  ',
+  '  AgentHub',
 ];
 
 function printBanner() {
@@ -1082,43 +1078,9 @@ async function cmdVersion() {
   print(`${pkg.name} v${pkg.version}`);
 }
 
-async function cmdUpdate(connector) {
-  const { checkForUpdate, runUpdate, currentVersion } = require('./update-check');
-  const info = await checkForUpdate();
-  if (!info) {
-    print('Could not reach the npm registry. Check your network.');
-    process.exitCode = 1;
-    return;
-  }
-  if (!info.isNewer) {
-    print(`Already on the latest version (${currentVersion()}).`);
-    return;
-  }
-  print(`Updating ${info.current} → ${info.latest}...`);
-  const ok = runUpdate();
-  if (!ok) {
-    print('Update failed.');
-    process.exitCode = 1;
-    return;
-  }
-  print(`Updated to ${info.latest}.`);
-
-  // Recycle a running daemon so the new build takes effect immediately. Without
-  // this, a long-lived daemon keeps executing the OLD in-memory code (and misses
-  // new features) until the next manual restart or reboot — the failure mode
-  // that left a connected node showing offline after its launcher was upgraded.
-  try {
-    if (connector && connector.getDaemonPid()) {
-      print('Restarting daemon to apply the update...');
-      connector.stopDaemon();
-      for (let i = 0; i < 25 && connector.getDaemonPid(); i++) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-      }
-      connector.startDaemon();
-    }
-  } catch (e) {
-    print(`Note: could not restart the daemon automatically (${e.message}). Run 'agn restart'.`);
-  }
+async function cmdUpdate() {
+  print('Core updates require a reviewed AgentHub build. Follow the candidate installation guide; in-place registry updates are disabled.');
+  process.exitCode = 1;
 }
 
 async function cmdHelp() {
@@ -1155,7 +1117,8 @@ Commands:
   workspace join <token>      Join workspace with token
   workspace list              List configured workspaces
   mcp-server                  Start MCP server (stdio) for workspace tools
-  update                      Upgrade launcher to the latest npm release
+  core-info                   Show runtime source commit, version and directory
+  update                      Show controlled AgentHub upgrade instructions
   version                     Show version
   help                        Show this help
 
@@ -1175,25 +1138,8 @@ async function main() {
   if (cmd === 'help' || flags.help) { await cmdHelp(); return; }
   if (cmd === 'version' || flags.version) { await cmdVersion(); return; }
 
-  // Check for a newer launcher version and offer to install it. Skip for:
-  //   - mcp-server: JSON-RPC subprocess spawned by Claude Code
-  //   - up --foreground: the backgrounded daemon child
-  //   - tui / auto-TUI: interactive UI manages its own rendering
-  //   - update: already updating; avoid recursion
-  const skipUpdateCheck =
-    cmd === 'mcp-server' ||
-    (cmd === 'up' && flags.foreground) ||
-    cmd === 'tui' ||
-    cmd === 'update' ||
-    flags['no-update-check'] ||
-    process.env.OPENAGENTS_SKIP_UPDATE_CHECK === '1' ||
-    (cmd === 'status' && process.argv.length <= 2 && process.stdin.isTTY);
-  if (!skipUpdateCheck) {
-    try {
-      const { notifyAndMaybeUpdate } = require('./update-check');
-      await notifyAndMaybeUpdate();
-    } catch {}
-  }
+  if (cmd === 'update') { await cmdUpdate(); return; }
+  if (cmd === 'core-info') { print(JSON.stringify(require('./core-identity').verifyManagedCore(), null, 2)); return; }
 
   const connector = getConnector(flags);
 

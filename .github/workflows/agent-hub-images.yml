@@ -12,6 +12,7 @@ on:
     branches-ignore:
       - 'codex/zai-15-implementation-baseline'
       - 'codex/zai-16-independent-endpoints'
+      - 'codex/zai-17-verified-core'
     paths:
       - 'workspace/backend/**'
       - 'workspace/frontend/**'

@@ -729,6 +729,7 @@ declare global {
        */
       setChromeDimmed(dim: boolean): Promise<unknown>
       getAllSettings(): Promise<Record<string, unknown>>
+      configureServices(config: unknown): Promise<void>
       exportSettings(): Promise<string>
       exportSettingsToFile(): Promise<{
         ok: boolean

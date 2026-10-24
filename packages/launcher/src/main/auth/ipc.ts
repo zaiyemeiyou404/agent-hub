@@ -104,6 +104,20 @@ export function registerAccountIpc(deps: AccountIpcDeps): AccountManager {
   workspaceHost = host
 
   let savingServices = false
+  ipcMain.handle("launcher:configure-services", async (event, value: unknown) => {
+    const contents=deps.getWindow()?.webContents
+    if(!contents || event.sender!==contents || event.senderFrame!==contents.mainFrame) throw new Error("FORBIDDEN")
+    if(!deps.saveServices) throw new Error("configuration_unavailable")
+    if(savingServices) throw new Error("configuration_busy")
+    const config=validateServiceConfiguration(value)
+    savingServices=true
+    try {
+      await deps.saveServices(config)
+      setServiceConfiguration(config)
+      account.signOut()
+      await host.whenCleared()
+    } finally { savingServices=false }
+  })
   ipcMain.handle("workspace-view:configure-services", async (event, value: unknown) => {
     if (!host.isWorkspaceSender(event.sender)) throw new Error("FORBIDDEN")
     if (!deps.saveServices) throw new Error("configuration_unavailable")

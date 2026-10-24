@@ -985,6 +985,7 @@ async _runNodeCommand(n, cmd) {
    * Call this from the foreground daemon process.
    */
   async start() {
+    require('./core-identity').assertCompatibleDaemon(this.config.configDir, undefined, { ignoreSelf:true });
     const agents = this.config.getAgents();
     for (const agent of agents) {
       this._launchAgent(agent);
@@ -1238,6 +1239,7 @@ async _runNodeCommand(n, cmd) {
    * @param {string[]} foregroundArgs - CLI args for the foreground child process
    */
   static daemonize(configDir, foregroundArgs, execPath) {
+    require('./core-identity').assertCompatibleDaemon(configDir);
     const logFile = path.join(configDir, 'daemon.log');
     const pidFile = path.join(configDir, 'daemon.pid');
     const bin = execPath || process.execPath;
@@ -1298,6 +1300,7 @@ async _runNodeCommand(n, cmd) {
    * @returns {boolean} true if stopped
    */
   static stopDaemon(configDir) {
+    require('./core-identity').assertCompatibleDaemon(configDir);
     const pidFile = path.join(configDir, 'daemon.pid');
     const statusFile = path.join(configDir, 'daemon.status.json');
 
@@ -1354,6 +1357,7 @@ async _runNodeCommand(n, cmd) {
    * Read daemon PID, returning null if not running.
    */
   static readDaemonPid(configDir) {
+    require('./core-identity').assertCompatibleDaemon(configDir);
     const pidFile = path.join(configDir, 'daemon.pid');
     const statusFile = path.join(configDir, 'daemon.status.json');
     const pid = Daemon._readPid(pidFile);
@@ -1852,7 +1856,8 @@ async _runNodeCommand(n, cmd) {
 
   _writeStatus() {
     try {
-      const status = { agents: this.getStatus(), pid: process.pid };
+      const status = { agents: this.getStatus(), pid: process.pid,
+        core: require('./core-identity').verifyManagedCore() };
       fs.writeFileSync(this.config.statusFile, JSON.stringify(status, null, 2), 'utf-8');
     } catch {}
   }
@@ -2078,6 +2083,7 @@ async _runNodeCommand(n, cmd) {
    * stopped for a legitimate restart doesn't block the replacement.
    */
   static runningDaemonPid(configDir) {
+    require('./core-identity').assertCompatibleDaemon(configDir, undefined, { ignoreSelf:true });
     return Daemon._liveDaemonPids(configDir)[0] || null;
   }
 

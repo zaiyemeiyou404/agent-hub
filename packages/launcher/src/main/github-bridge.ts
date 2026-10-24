@@ -1,6 +1,4 @@
-import path from "path"
-
-const LOCAL_CORE = path.resolve(__dirname, "../../../agent-connector")
+import { loadCore } from "./agents/runtime"
 
 export interface GitHubProbeResult {
   ok: boolean
@@ -90,18 +88,10 @@ let _ctor: GitHubClientStatic | null = null
 
 function loadCtor(): GitHubClientStatic {
   if (_ctor) return _ctor
-  try {
-    const mod = require(LOCAL_CORE) as { GitHubClient: GitHubClientStatic }
-    _ctor = mod.GitHubClient
-    return _ctor
-  } catch {
-    // Fall back to the installed copy under the bundled global modules.
-    const mod = require("@openagents-org/agent-launcher") as {
-      GitHubClient: GitHubClientStatic
-    }
-    _ctor = mod.GitHubClient
-    return _ctor
-  }
+  const mod = loadCore() as { GitHubClient?: GitHubClientStatic } | null
+  if (!mod?.GitHubClient) throw new Error("Verified AgentHub core is unavailable")
+  _ctor = mod.GitHubClient
+  return _ctor
 }
 
 let _client: GitHubClientLike | null = null
