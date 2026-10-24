@@ -21,6 +21,7 @@ const fakes = vi.hoisted(() => ({
   pushNotification: vi.fn(),
   saveServices: vi.fn(),
   reopenServices: vi.fn(),
+  mainSender: { mainFrame:{}, send:(_channel:string,_value:unknown)=>{} },
 }))
 vi.mock("electron", () => ({
   ipcMain: {
@@ -65,14 +66,27 @@ beforeEach(() => {
   fakes.whenCleared.mockResolvedValue(undefined)
   fakes.isWorkspaceSender.mockReturnValue(true)
   fakes.nodeStatus.mockResolvedValue(status)
+  fakes.mainSender.send = fakes.send
   fakes.createPairingCode.mockResolvedValue("TEST-CODE")
   registerAccountIpc({
     appearance: () => ({ theme: "system", language: "en" }),
     setAppearance: fakes.setAppearance, endpoint: () => undefined,
-    getWindow: () => ({ webContents: { send: fakes.send } }) as never,
+    getWindow: () => ({ webContents: fakes.mainSender }) as never,
     connectNode: fakes.connectNode, nodeStatus: fakes.nodeStatus,
     saveServices: fakes.saveServices,
   })
+})
+
+it("native first-run settings accept only the owned main frame and persist atomically",async()=>{
+  const save=fakes.handlers.get("launcher:configure-services")
+  expect(save).toBeTypeOf("function")
+  const config={apiBase:"https://api.example.test",webBase:"https://web.example.test",authBase:"https://auth.example.test",devLoopback:false}
+  await expect(save!({sender:{},senderFrame:{}},config)).rejects.toThrow("FORBIDDEN")
+  await expect(save!({sender:fakes.mainSender,senderFrame:{}},config)).rejects.toThrow("FORBIDDEN")
+  await save!({sender:fakes.mainSender,senderFrame:fakes.mainSender.mainFrame},config)
+  expect(fakes.saveServices).toHaveBeenCalledWith(config)
+  expect(fakes.signOut).toHaveBeenCalledOnce()
+  expect(fakes.reopenServices).not.toHaveBeenCalled()
 })
 
 it("validates and persists service settings only for the owned page, then clears the old login", async () => {

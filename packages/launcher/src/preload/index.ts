@@ -95,6 +95,7 @@ contextBridge.exposeInMainWorld('api', {
   // scrims the page, so the buttons dim with it.
   setChromeDimmed: (dim: boolean) => ipcRenderer.invoke('window:chrome-dim', dim),
   getAllSettings: () => ipcRenderer.invoke('settings:get-all'),
+  configureServices: (config: unknown) => ipcRenderer.invoke('launcher:configure-services', config),
   exportSettings: () => ipcRenderer.invoke('settings:export'),
   exportSettingsToFile: () => ipcRenderer.invoke('settings:export-to-file'),
   importSettings: (json: string) => ipcRenderer.invoke('settings:import', json),

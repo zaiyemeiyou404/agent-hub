@@ -504,6 +504,7 @@ export function setupAutoUpdater(opts: {
     _resumeAfterFailedInstall = opts.resumeAfterFailedInstall
   _state.currentVersion = app.getVersion()
   _state.autoDownload = _isAutoUpdateEnabled()
+  registerIpc()
   // A separate candidate must not initialize another app's updater caches.
   if (process.env.AGHUB_UPDATE_ENABLED !== "1" ||
       !updateFeedOrNull(typeof opts.feedUrlOverride === "string" ? opts.feedUrlOverride : undefined, true)) {
@@ -626,7 +627,6 @@ export function setupAutoUpdater(opts: {
     debug: () => {},
   }
   wireEvents()
-  registerIpc()
   // After wireEvents so a bad mirror surfaces through the normal error path.
   applyUpdateFeedUrl(opts.feedUrlOverride)
 }
