@@ -8,6 +8,10 @@ on:
         required: false
         type: string
   push:
+    # Review candidates are uploaded for inspection, not image publication.
+    branches-ignore:
+      - 'codex/zai-15-implementation-baseline'
+      - 'codex/zai-16-independent-endpoints'
     paths:
       - 'workspace/backend/**'
       - 'workspace/frontend/**'
