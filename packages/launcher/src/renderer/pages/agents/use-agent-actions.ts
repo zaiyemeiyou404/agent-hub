@@ -251,7 +251,8 @@ export function useAgentActions(
       }
       // Deliberately no ?token= here: the address bar leaks into history and
       // screen shares, and the browser session handles access on its own.
-      window.api.openExternal(`${workspaceWebBaseUrl(ws?.endpoint)}/${slug}`)
+      const page = workspaceWebBaseUrl(ws?.endpoint)
+      if (page) window.api.openExternal(`${page}/${slug}`)
     } catch (err: unknown) {
       showToast(
         t("agents.list.toast.error", { message: (err as Error).message }),

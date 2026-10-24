@@ -10,6 +10,7 @@ import {
 } from '@/lib/desktop-handoff';
 import { useT, type MessageKey } from '@/lib/i18n';
 import { loadWorkspaceSession } from '@/lib/workspace-session';
+import { authBaseFromEnv } from '@/lib/service-endpoints';
 
 /**
  * The desktop launcher's sign-in landing.
@@ -27,8 +28,6 @@ import { loadWorkspaceSession } from '@/lib/workspace-session';
  * final destination and no token is ever minted. Being a normal destination
  * keeps this on the same path every browser sign-in already takes.
  */
-
-const CENTRAL = 'https://openagents.org';
 
 /** Set once we have been through the login; a second empty return is a failure,
  *  not a reason to bounce again. */
@@ -60,7 +59,13 @@ function DesktopAuth() {
         setError({ key: 'auth.desktopNoSession' });
         return;
       }
-      window.location.replace(`${CENTRAL}/login?returnTo=${encodeURIComponent(returnUrl(handoff))}`);
+      const auth = authBaseFromEnv();
+      if (!auth) {
+        setPhase('failed');
+        setError({ key: 'auth.desktopNoSession' });
+        return;
+      }
+      window.location.replace(`${auth}/login?returnTo=${encodeURIComponent(returnUrl(handoff))}`);
       return;
     }
 

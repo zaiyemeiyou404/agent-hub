@@ -9,28 +9,23 @@ const nextConfig = {
   // optimiser errors or runs out of quota the sidebar logo breaks and its
   // alt text spills into the brand block. Serve the files as-is.
   images: { unoptimized: true },
-  async redirects() {
-    return [
-      // NOTE: `/` on workspace.openagents.org used to redirect to the marketing
-      // site. As of v1.0 `/` is the enforced-login Membership Home (workspace
-      // picker), so that redirect is intentionally removed.
-      {
-        source: '/install.sh',
-        destination: 'https://raw.githubusercontent.com/openagents-org/openagents/develop/scripts/install.sh',
-        permanent: false,
-      },
-      {
-        source: '/install.ps1',
-        destination: 'https://raw.githubusercontent.com/openagents-org/openagents/develop/scripts/install.ps1',
-        permanent: false,
-      },
-    ];
-  },
   async rewrites() {
+    const api = process.env.NEXT_PUBLIC_API_URL || '';
+    let destination = '';
+    try {
+      const url = new URL(api);
+      const dev = process.env.AGHUB_DEV_LOOPBACK === '1' || process.env.NEXT_PUBLIC_AGHUB_DEV_LOOPBACK === '1'
+        && url.protocol === 'http:'
+        && url.host === '127.0.0.1:18000';
+      if (url.protocol === 'https:' || dev) destination = `${url.protocol}//${url.host}`;
+    } catch {
+      destination = '';
+    }
+    if (!destination) return [];
     return [
       {
         source: '/wsapi/:path*',
-        destination: 'https://workspace-endpoint.openagents.org/:path*',
+        destination: `${destination}/:path*`,
       },
     ];
   },

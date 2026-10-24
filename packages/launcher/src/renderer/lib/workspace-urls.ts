@@ -1,7 +1,5 @@
 import type { AccountWorkspace, Workspace } from "@renderer/types"
 
-const DEFAULT_WORKSPACE_WEB_BASE_URL = "https://workspace.openagents.org"
-
 /** Full workspace URL, including the access token when the workspace has one. */
 export function workspaceUrl(ws: Workspace): string {
   const url = workspacePageUrl(ws)
@@ -18,8 +16,7 @@ export function workspacePageUrl(ws: Workspace): string {
 }
 
 export function workspaceWebBaseUrl(endpoint?: string): string {
-  const baseUrl = (endpoint || DEFAULT_WORKSPACE_WEB_BASE_URL).replace(/\/$/, "")
-  return baseUrl.replace("workspace-endpoint", "workspace").replace(/\/v1$/, "")
+  return (endpoint || "").trim().replace(/\/$/, "").replace(/\/v1$/, "")
 }
 
 /**

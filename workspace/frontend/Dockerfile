@@ -4,8 +4,14 @@ WORKDIR /app
 
 # The public API URL is injected by the image workflow; self-hosted deployments
 # can use the same HTTPS origin as the frontend and route /v1/* through Caddy.
-ARG NEXT_PUBLIC_API_URL=https://workspace-endpoint.openagents.org
+ARG NEXT_PUBLIC_API_URL=
+ARG NEXT_PUBLIC_WEB_BASE=
+ARG NEXT_PUBLIC_AUTH_BASE=
+ARG NEXT_PUBLIC_AGHUB_DEV_LOOPBACK=
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_WEB_BASE=${NEXT_PUBLIC_WEB_BASE}
+ENV NEXT_PUBLIC_AUTH_BASE=${NEXT_PUBLIC_AUTH_BASE}
+ENV NEXT_PUBLIC_AGHUB_DEV_LOOPBACK=${NEXT_PUBLIC_AGHUB_DEV_LOOPBACK}
 # Self-hosted / preview deployments on their own domain (see
 # lib/openagents-auth-context.tsx and lib/auth-redirects.ts).
 ARG NEXT_PUBLIC_FIRST_PARTY_HOSTNAMES=

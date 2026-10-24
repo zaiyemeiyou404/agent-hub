@@ -43,9 +43,7 @@ class Config:
     # the web client bundle. Used server-side to exchange the openagents.org
     # login-handoff custom token via the Identity Toolkit REST API on behalf of
     # browsers that cannot reach Google themselves (mainland China).
-    FIREBASE_WEB_API_KEY: str = os.environ.get(
-        "FIREBASE_WEB_API_KEY", "AIzaSyCXgN-7HfgAQiN0pRKqGi8jMbGGo9e9X34"
-    )
+    FIREBASE_WEB_API_KEY: str = os.environ.get("FIREBASE_WEB_API_KEY", "")
 
     # Workspace-issued login session (HS256 JWT). Minted by POST /v1/auth/session
     # after a server-side custom-token exchange and accepted as an identity
@@ -146,9 +144,9 @@ class Config:
     # workspaces: never persisted per-workspace and never exposed to the frontend.
     # Yumi is only provisioned when enabled AND a key is configured, so
     # self-hosted deployments without a key simply don't get it.
-    YUMI_ENABLED: bool = os.environ.get("YUMI_ENABLED", "true").lower() in ("true", "1", "yes")
+    YUMI_ENABLED: bool = os.environ.get("YUMI_ENABLED", "false").lower() in ("true", "1", "yes")
     YUMI_API_KEY: str = os.environ.get("YUMI_API_KEY", "")
-    YUMI_BASE_URL: str = os.environ.get("YUMI_BASE_URL", "https://api-gateway.openagents.org/v1")
+    YUMI_BASE_URL: str = os.environ.get("YUMI_BASE_URL", "")
     # deepseek-v4.1-flash (2026-09-22): passes every manager/coordination
     # probe with the most polished replies; ~2x slower per tool loop than
     # minimax-m2.5 (14.7s vs 6.1s avg, mostly answer length) and ~33% pricier.
@@ -163,15 +161,12 @@ class Config:
     # Google OAuth (for "Sign in with Google" Gemini integration)
     GOOGLE_OAUTH_CLIENT_ID: str = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "")
     GOOGLE_OAUTH_CLIENT_SECRET: str = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "")
-    GOOGLE_OAUTH_REDIRECT_URI: str = os.environ.get(
-        "GOOGLE_OAUTH_REDIRECT_URI",
-        "https://workspace-endpoint.openagents.org/v1/cloud-agents/google/callback",
-    )
+    GOOGLE_OAUTH_REDIRECT_URI: str = os.environ.get("GOOGLE_OAUTH_REDIRECT_URI", "")
 
     # Invitations & transactional email. Invite links point at the workspace
     # frontend; email delivery goes through Resend when a key is configured
     # (otherwise invites are created but the email step is skipped).
-    FRONTEND_BASE_URL: str = os.environ.get("FRONTEND_BASE_URL", "https://workspace.openagents.org")
+    FRONTEND_BASE_URL: str = os.environ.get("FRONTEND_BASE_URL", "")
     RESEND_API_KEY: str = os.environ.get("RESEND_API_KEY", "")
     EMAIL_FROM: str = os.environ.get("EMAIL_FROM", "OpenAgents <noreply@openagents.org>")
     INVITE_TTL_DAYS: int = int(os.environ.get("INVITE_TTL_DAYS", "7"))
@@ -180,16 +175,14 @@ class Config:
     # checkpoints keyed by account email — see app/services/analytics.py.
     # Defaults to the public project key shared by the web clients; posts
     # straight to PostHog Cloud (not the CN-flaky Cloudflare proxy).
-    POSTHOG_API_KEY: str = os.environ.get("POSTHOG_API_KEY", "phc_t27xjrx9U42B54arcMwpiBgQxEFikBzXGnvzVtFEGtpf")
-    POSTHOG_HOST: str = os.environ.get("POSTHOG_HOST", "https://us.i.posthog.com")
-    ANALYTICS_ENABLED: bool = os.environ.get("ANALYTICS_ENABLED", "1") not in ("0", "false", "False")
+    POSTHOG_API_KEY: str = os.environ.get("POSTHOG_API_KEY", "")
+    POSTHOG_HOST: str = os.environ.get("POSTHOG_HOST", "")
+    ANALYTICS_ENABLED: bool = os.environ.get("ANALYTICS_ENABLED", "0") not in ("0", "false", "False")
 
     # Chat-platform integrations (Slack / Telegram bridges). The public base
     # URL is what external platforms call back to — Telegram setWebhook and
     # the Slack Events API URL both derive from it.
-    PUBLIC_API_BASE: str = os.environ.get(
-        "PUBLIC_API_BASE", "https://workspace-endpoint.openagents.org"
-    )
+    PUBLIC_API_BASE: str = os.environ.get("PUBLIC_API_BASE", "")
     # The official "OpenAgents" Slack app (one-click Add to Slack). All three
     # come from the app's Basic Information page; when unset, the UI falls
     # back to the bring-your-own-app flow (docs/slack-app-setup.md).
@@ -202,7 +195,7 @@ class Config:
     # default: self-hosted deployments have no gateway master key and should
     # never see the campaign UI. The official deployment enables it via env.
     CAMPAIGN_ENABLED: bool = os.environ.get("CAMPAIGN_ENABLED", "false").lower() in ("true", "1", "yes")
-    CAMPAIGN_GATEWAY_URL: str = os.environ.get("CAMPAIGN_GATEWAY_URL", "https://api-gateway.openagents.org")
+    CAMPAIGN_GATEWAY_URL: str = os.environ.get("CAMPAIGN_GATEWAY_URL", "")
     CAMPAIGN_GATEWAY_MASTER_KEY: str = os.environ.get("CAMPAIGN_GATEWAY_MASTER_KEY", "")
     CAMPAIGN_TOTAL_CAP_USD: float = float(os.environ.get("CAMPAIGN_TOTAL_CAP_USD", "100"))
     CAMPAIGN_DAILY_GRANT_USD: float = float(os.environ.get("CAMPAIGN_DAILY_GRANT_USD", "10"))
@@ -219,7 +212,7 @@ class Config:
     # openagents.org account API (openagents-web backend) — consulted once per
     # unverified user's status fetch to learn whether the address was confirmed
     # there (covers sessions established before the handoff carried the claim).
-    ACCOUNT_API_URL: str = os.environ.get("ACCOUNT_API_URL", "https://endpoint.openagents.org")
+    ACCOUNT_API_URL: str = os.environ.get("ACCOUNT_API_URL", "")
     CAMPAIGN_BLOCKED_EMAIL_DOMAINS: str = os.environ.get("CAMPAIGN_BLOCKED_EMAIL_DOMAINS", "000-webmail.myhome-server.de,myhome-server.de,temp-mail-free.dedyn.io")
     # Only addresses at these common mailbox providers earn credits (decision
     # 2026-10-08): every farm since 09-18 used catch-all domains on email

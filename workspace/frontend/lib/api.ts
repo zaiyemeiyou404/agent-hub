@@ -76,8 +76,9 @@ import type {
   SecurityGroup,
 } from './types';
 import { eventToMessage } from './types';
+import { apiBaseFromEnv } from './service-endpoints';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://workspace-endpoint.openagents.org';
+const API_URL = apiBaseFromEnv();
 /** Deadline for the static catalogs the Connect Agent view loads (and retries). */
 const CATALOG_TIMEOUT_MS = 15_000;
 

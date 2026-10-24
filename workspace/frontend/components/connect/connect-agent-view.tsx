@@ -17,6 +17,7 @@ import { AgentSharingButton } from '@/components/sharing/agent-sharing-button';
 import { AgentSetup, CatalogStateNotice, type CatalogState } from '@/components/agents/agent-setup';
 import { DesktopComputerStep } from './desktop-computer-step';
 import { capture } from '@/lib/analytics';
+import { webBaseFromEnv } from '@/lib/service-endpoints';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useOpenAgentsAuth } from '@/lib/openagents-auth-context';
@@ -481,8 +482,12 @@ export function ConnectAgentView({
 // Nodes Tab — devices running the launcher daemon (connect-a-node)
 // ---------------------------------------------------------------------------
 
-const INSTALL_COMMAND = 'curl -fsSL https://openagents.org/install.sh | bash';
-const INSTALL_COMMAND_WIN = 'irm https://openagents.org/install.ps1 | iex';
+const _web = webBaseFromEnv();
+const INSTALL_COMMAND = _web ? `curl -fsSL ${_web}/install.sh | bash` : 'configuration_required';
+const INSTALL_COMMAND_WIN = _web ? `irm ${_web}/install.ps1 | iex` : 'configuration_required';
+const LAUNCHER_MAC = _web ? `${_web}/download/launcher/mac` : '';
+const LAUNCHER_MAC_INTEL = _web ? `${_web}/download/launcher/mac-intel` : '';
+const LAUNCHER_WINDOWS = _web ? `${_web}/download/launcher/windows` : '';
 
 function deviceIcon(deviceType: string, className?: string) {
   switch (deviceType) {
@@ -621,7 +626,7 @@ function PairingPanel({
                 <Laptop className="size-4 shrink-0 text-primary" />
                 <span>
                   {t('connect.nodeMobileGoTo1')}{' '}
-                  <span className="font-mono font-bold text-primary">openagents.org</span>{' '}
+                  <span className="font-mono font-bold text-primary">{_web || 'configuration_required'}</span>{' '}
                   {t('connect.nodeMobileGoTo2')}
                 </span>
               </div>
@@ -631,9 +636,9 @@ function PairingPanel({
           <div className={cn('text-xs font-medium text-muted-foreground', isMobile && 'hidden')}>{t('connect.nodeInstallDesktop')}</div>
           <div className={cn('grid grid-cols-3 gap-2', isMobile && 'hidden')}>
             {([
-              { os: t('connect.nodeMacSilicon'), href: 'https://openagents.org/api/download/launcher/mac' },
-              { os: t('connect.nodeMacIntel'), href: 'https://openagents.org/api/download/launcher/mac-intel' },
-              { os: 'Windows', href: 'https://openagents.org/api/download/launcher/windows' },
+              { os: t('connect.nodeMacSilicon'), href: LAUNCHER_MAC },
+              { os: t('connect.nodeMacIntel'), href: LAUNCHER_MAC_INTEL },
+              { os: 'Windows', href: LAUNCHER_WINDOWS },
             ]).map((d) => (
               <a
                 key={d.os}
@@ -1427,7 +1432,7 @@ function LocalAgentsTab({
               </p>
               <div className="flex gap-2">
                 <a
-                  href="https://openagents.org/api/download/launcher/mac"
+                  href={LAUNCHER_MAC}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex-1 text-center px-3 py-2 text-[11px] font-medium rounded-md border hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
@@ -1435,7 +1440,7 @@ function LocalAgentsTab({
                   {t('connect.nodeMacSilicon')}
                 </a>
                 <a
-                  href="https://openagents.org/api/download/launcher/mac-intel"
+                  href={LAUNCHER_MAC_INTEL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex-1 text-center px-3 py-2 text-[11px] font-medium rounded-md border hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
@@ -1443,7 +1448,7 @@ function LocalAgentsTab({
                   {t('connect.nodeMacIntel')}
                 </a>
                 <a
-                  href="https://openagents.org/api/download/launcher/windows"
+                  href={LAUNCHER_WINDOWS}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex-1 text-center px-3 py-2 text-[11px] font-medium rounded-md border hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
@@ -1473,11 +1478,11 @@ function LocalAgentsTab({
                   <div className="relative group mt-1">
                     <pre className="bg-zinc-900 text-zinc-100 rounded-md px-3.5 py-2.5 text-xs font-mono leading-relaxed overflow-x-auto">
                       <span className="text-zinc-500">$ </span>
-                      <span className="text-emerald-400">curl -fsSL https://openagents.org/install.sh | bash</span>
+                      <span className="text-emerald-400">{INSTALL_COMMAND}</span>
                     </pre>
                     <button
                       className="absolute top-1.5 right-1.5 size-6 flex items-center justify-center rounded bg-zinc-700/80 hover:bg-zinc-600 text-zinc-300 hover:text-white opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
-                      onClick={() => { capture('cli_install_copied', { step: 'install_cli', source: 'connect_agent_view' }); copyToClipboard('curl -fsSL https://openagents.org/install.sh | bash'); }}
+                      onClick={() => { capture('cli_install_copied', { step: 'install_cli', source: 'connect_agent_view' }); copyToClipboard(INSTALL_COMMAND); }}
                     >
                       {isCopied ? <Check className="size-3" /> : <Copy className="size-3" />}
                     </button>

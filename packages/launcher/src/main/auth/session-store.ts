@@ -25,6 +25,8 @@ export interface AccountSession {
   expiresAt: number
   /** Firebase only — what the hourly renewal is done with. */
   refreshToken?: string
+  /** Service that minted this credential. A different apiBase must not receive it. */
+  boundApiBase?: string
 }
 
 /** What the renderer is told about the account; never the token itself. */

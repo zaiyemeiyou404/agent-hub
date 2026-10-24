@@ -18,7 +18,8 @@ import electronUpdater, {
   type UpdateDownloadedEvent,
 } from "electron-updater"
 import { launchWindowsUpdateInstaller } from "./windows-update-installer"
-import { DEFAULT_LAUNCHER_FEED, launcherFeedUrl } from "./mirror"
+import { launcherFeedUrl } from "./mirror"
+import { updateFeedOrNull } from "./auth/service-endpoints"
 import { fetchReleaseNotes } from "./release-notes"
 import type { Release } from "../shared/changelog"
 import {
@@ -86,21 +87,8 @@ export interface UpdaterState {
   autoDownload: boolean
 }
 
-// Where the download-page fallback points, per OS/arch. Linux has no dedicated
-// endpoint yet, so it keeps the GitHub Releases page.
-const GITHUB_RELEASES_URL =
-  "https://github.com/openagents-org/openagents/releases"
-
 function resolveDownloadUrl(): string {
-  if (process.platform === "win32") {
-    return "https://openagents.org/api/download/launcher/windows"
-  }
-  if (process.platform === "darwin") {
-    return process.arch === "arm64"
-      ? "https://openagents.org/api/download/launcher/mac"
-      : "https://openagents.org/api/download/launcher/mac-intel"
-  }
-  return GITHUB_RELEASES_URL
+  return ""
 }
 
 let _state: UpdaterState = {
@@ -141,7 +129,7 @@ let _cacheDirName: string | null = null
 let _feedOverridden = false
 // The origin installers are actually coming from. Release notes are published
 // beside them, so they follow the mirror rather than always hitting the default.
-let _feedBase = DEFAULT_LAUNCHER_FEED
+let _feedBase = ""
 // Version whose notes we have already asked for, so the repeated checks that
 // re-announce the same update don't refetch them every half hour.
 let _notesRequestedFor: string | null = null
@@ -487,15 +475,8 @@ export function applyUpdateFeedUrl(override: unknown): void {
       _feedBase = url
       _log(`[updater] using update feed mirror: ${url}`)
     } else if (_feedOverridden) {
-      // Switching back to the default: electron-updater has no "unset feed"
-      // call, so restore the packaged origin explicitly.
-      autoUpdater.setFeedURL({
-        provider: "generic",
-        url: DEFAULT_LAUNCHER_FEED,
-        ...FEED_OPTIONS,
-      })
-      _feedBase = DEFAULT_LAUNCHER_FEED
-      _log(`[updater] using default update feed: ${DEFAULT_LAUNCHER_FEED}`)
+      _feedBase = ""
+      _log("[updater] update feed cleared; no default feed is contacted")
     }
     _feedOverridden = url !== null
   } catch (err) {
@@ -648,6 +629,8 @@ export function setupAutoUpdater(opts: {
 // update prompt until the next scheduled check.
 export async function checkForUpdatesOnStartup(): Promise<boolean> {
   if (!_state.supported) return false
+  const feed = updateFeedOrNull(_feedBase, process.env.AGHUB_UPDATE_ENABLED === "1")
+  if (!feed) return false
   try {
     return (await autoUpdater.checkForUpdates()) !== null
   } catch (err) {

@@ -10,6 +10,14 @@ import { workspaceApi } from '@/lib/api';
 import { AgentIcon } from '@/components/icons/agent-icons';
 import { useT } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
+import { webBaseFromEnv } from '@/lib/service-endpoints';
+
+const _web = webBaseFromEnv();
+const INSTALL_UNIX = _web ? `curl -fsSL ${_web}/install.sh | bash` : 'configuration_required';
+const INSTALL_WIN = _web ? `irm ${_web}/install.ps1 | iex` : 'configuration_required';
+function launcherDownload(name: string): string {
+  return _web ? `${_web}/download/launcher/${name}` : '';
+}
 import type { AgentCatalogEntry } from '@/lib/types';
 
 export function EmptyConversation({ name, human = false, self = false }: { name?: string; human?: boolean; self?: boolean }) {
@@ -178,9 +186,9 @@ export function EmptyState() {
                 </p>
                 <div className="flex gap-2">
                   {[
-                    { label: 'macOS', platform: 'mac-arm64', href: 'https://openagents.org/api/download/launcher/mac' },
-                    { label: 'Windows', platform: 'windows', href: 'https://openagents.org/api/download/launcher/windows' },
-                    { label: 'Linux', platform: 'linux-appimage', href: 'https://openagents.org/api/download/launcher/linux-appimage' },
+                    { label: 'macOS', platform: 'mac-arm64', href: launcherDownload('mac') },
+                    { label: 'Windows', platform: 'windows', href: launcherDownload('windows') },
+                    { label: 'Linux', platform: 'linux-appimage', href: launcherDownload('linux-appimage') },
                   ].map((dl) => (
                     <a
                       key={dl.label}
@@ -216,7 +224,7 @@ export function EmptyState() {
                   <CliStep
                     step="1"
                     label={t('onboarding.stepInstallCli')}
-                    command="curl -fsSL https://openagents.org/install.sh | bash"
+                    command={INSTALL_UNIX}
                     isCopied={isCopied}
                     onCopy={(cmd) => {
                       capture('cli_install_copied', {
@@ -229,7 +237,7 @@ export function EmptyState() {
                   />
                   <CliStep
                     label={t('onboarding.stepInstallCliWindows')}
-                    command="irm https://openagents.org/install.ps1 | iex"
+                    command={INSTALL_WIN}
                     isCopied={isCopied}
                     onCopy={(cmd) => {
                       capture('cli_install_copied', {

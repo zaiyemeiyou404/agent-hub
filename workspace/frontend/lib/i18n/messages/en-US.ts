@@ -2319,7 +2319,7 @@ export const messages = {
     verifyResend: 'Resend verification email',
     verifySent: 'Sent — check your inbox (and spam).',
     verifyAlready: 'Already verified — refresh this page.',
-    verifyFailed: 'Couldn’t resend from here. Sign in at openagents.org and use the link in your welcome email.',
+    verifyFailed: 'Couldn’t resend from here. Use the link in your welcome email.',
     pageDescription: 'Complete onboarding missions to earn free model-inference credits on your personal API key.',
     missionsTitle: 'Missions',
     dailyTitle: 'Daily bonus',

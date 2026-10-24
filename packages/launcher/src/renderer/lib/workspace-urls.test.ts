@@ -25,8 +25,8 @@ describe("opensInApp", () => {
 
   it("opens a workspace the account belongs to, on the configured deployment, in the app", () => {
     expect(opensInApp(ws, undefined, true, member)).toBe(true)
-    // The device records the API endpoint; the setting may be empty for the default.
-    expect(opensInApp({ ...ws, endpoint: "https://workspace-endpoint.openagents.org/v1" }, "", true, member)).toBe(true)
+    // An empty setting is not an official deployment, so a recorded API host stays outside the app.
+    expect(opensInApp({ ...ws, endpoint: "https://api.example.com/v1" }, "", true, member)).toBe(false)
   })
 
   it("matches the account's workspace by slug when the ids differ in form", () => {

@@ -5,7 +5,7 @@ const { WorkspaceClient } = require('../src/workspace-client');
 const { McpServer } = require('../src/mcp-server');
 
 it('carries the working conversation on every browser tool, including read operations', async () => {
-  const ws = new WorkspaceClient();
+  const ws = new WorkspaceClient('https://api.example.com');
   const calls = [];
   ws._post = async (path, body) => { calls.push({path, body}); return {data:{id:'tab'}}; };
   ws._getRaw = async path => { calls.push({path}); return Buffer.from('snapshot'); };

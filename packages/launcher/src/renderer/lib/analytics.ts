@@ -1,10 +1,13 @@
 import posthog from "posthog-js"
 
-const POSTHOG_KEY = "phc_t27xjrx9U42B54arcMwpiBgQxEFikBzXGnvzVtFEGtpf"
-
 export function initAnalytics(): void {
-  posthog.init(POSTHOG_KEY, {
-    api_host: "https://d.openagents.org",
+  const key = process.env.AGHUB_POSTHOG_KEY
+  const host = process.env.AGHUB_POSTHOG_HOST
+  if (process.env.AGHUB_ANALYTICS !== "1" || !key || !host || host.includes("openagents.org")) {
+    return
+  }
+  posthog.init(key, {
+    api_host: host,
     person_profiles: "identified_only",
     capture_pageview: false,
     autocapture: true,

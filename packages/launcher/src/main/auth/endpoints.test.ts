@@ -1,33 +1,30 @@
 import { describe, expect, it } from "vitest"
 
-import { accountApiBase, apiBase, webBase, DEFAULT_API_BASE } from "./endpoints"
+import { ConfigurationRequiredError } from "./service-endpoints"
+import { accountApiBase, apiBase, webBase } from "./endpoints"
 
 describe("endpoints", () => {
-  it("defaults to the hosted workspace API", () => {
-    expect(apiBase(undefined)).toBe(DEFAULT_API_BASE)
+  it("does not invent an API host when nothing is configured", () => {
+    expect(() => apiBase(undefined)).toThrow(ConfigurationRequiredError)
   })
 
-  it("maps the API host to the web host that serves /auth/callback", () => {
-    expect(webBase(undefined)).toBe("https://workspace.openagents.org")
-    expect(webBase("https://workspace-endpoint.example.com")).toBe(
-      "https://workspace.example.com",
-    )
-  })
-
-  it("leaves a self-hosted endpoint that serves both from one origin alone", () => {
+  it("keeps an explicitly configured HTTPS origin", () => {
+    expect(apiBase("https://oa.internal/")).toBe("https://oa.internal")
     expect(webBase("https://oa.internal")).toBe("https://oa.internal")
   })
 
-  it("drops a trailing slash so paths concatenate cleanly", () => {
-    expect(apiBase("https://oa.internal/")).toBe("https://oa.internal")
+  it("does not rewrite one host into an official web host", () => {
+    expect(webBase("https://workspace-endpoint.example.com")).toBe(
+      "https://workspace-endpoint.example.com",
+    )
   })
 })
 
 describe("webBase override", () => {
-  it("wins over the derivation, for a front end served apart from its API", () => {
-    process.env.OPENAGENTS_WORKSPACE_WEB_BASE = "http://localhost:3001/"
+  it("uses the explicit web origin rather than deriving one", () => {
+    process.env.OPENAGENTS_WORKSPACE_WEB_BASE = "https://preview.example.com/"
     try {
-      expect(webBase(undefined)).toBe("http://localhost:3001")
+      expect(webBase(undefined)).toBe("https://preview.example.com")
     } finally {
       delete process.env.OPENAGENTS_WORKSPACE_WEB_BASE
     }
@@ -35,11 +32,8 @@ describe("webBase override", () => {
 })
 
 describe("accountApiBase", () => {
-  it("is the account service, not the workspace API", () => {
-    // Two different deployments: the website's own sign-in posts to this one,
-    // and a password sent to the workspace API would only ever 404.
-    expect(accountApiBase()).toBe("https://endpoint.openagents.org")
-    expect(accountApiBase()).not.toBe(apiBase(undefined))
+  it("is configuration_required until an auth origin is set", () => {
+    expect(() => accountApiBase()).toThrow(ConfigurationRequiredError)
   })
 
   it("follows its override to a staging deployment", () => {

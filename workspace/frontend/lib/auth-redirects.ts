@@ -1,19 +1,10 @@
 import { desktopHost } from './desktop-host';
+import { authBaseFromEnv } from './service-endpoints';
 
-// Central auth redirects for the workspace app.
-//
-// Login lives on openagents.org (not inline Firebase on the workspace origin),
-// and logout must also end that central session — otherwise the login redirect
-// immediately re-authenticates. These helpers keep every "sign in" / "sign out"
-// entry point consistent. On localhost there's no central site, so we fall back
-// to the app's own Firebase flow / a plain sign-out for local development.
+// Auth redirects use the configured authBase. A missing base stays on this
+// page instead of inventing a login host. NEXT_PUBLIC_INLINE_LOGIN=1 keeps
+// the in-app sign-in path.
 
-const CENTRAL = 'https://openagents.org';
-
-// NEXT_PUBLIC_INLINE_LOGIN=1 (build-time) makes every host behave like
-// localhost: sign in with the app's own Firebase popup instead of bouncing
-// through openagents.org. Invitation acceptance explicitly uses central login
-// so every account provider is available and its return URL is preserved.
 const INLINE_LOGIN = process.env.NEXT_PUBLIC_INLINE_LOGIN === '1';
 
 function isLocalhost(): boolean {
@@ -34,8 +25,10 @@ export function goToCentralLogin(fallbackSignIn?: () => void, options?: { forceC
     fallbackSignIn?.();
     return;
   }
+  const auth = authBaseFromEnv();
+  if (!auth) return;
   const returnTo = encodeURIComponent(window.location.href);
-  window.location.href = `${CENTRAL}/login?returnTo=${returnTo}`;
+  window.location.href = `${auth}/login?returnTo=${returnTo}`;
 }
 
 /**
@@ -49,7 +42,9 @@ export async function goToCentralLogout(signOut: () => Promise<void>): Promise<v
     /* already signed out */
   }
   if (typeof window === 'undefined' || isLocalhost() || desktopHost()) return;
-  window.location.href = `${CENTRAL}/logout`;
+  const auth = authBaseFromEnv();
+  if (!auth) return;
+  window.location.href = `${auth}/logout`;
 }
 
 /** Login route for protected pages; popup login must begin with a user click. */

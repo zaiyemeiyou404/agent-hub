@@ -240,5 +240,5 @@ it("follows theme and language changes only from the owned page", () => {
 it("hands the page the web origin its shared links must carry", () => {
   const event: { returnValue?: { webUrl?: string } } = {}
   fakes.listeners.get("workspace-view:config")!(event)
-  expect(event.returnValue?.webUrl).toBe("https://workspace.openagents.org")
+  expect(event.returnValue?.webUrl).toBe("")
 })

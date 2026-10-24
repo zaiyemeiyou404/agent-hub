@@ -11,12 +11,6 @@ export function normalizeWorkspaceEndpoint(value: unknown): string | undefined {
   try {
     const url = new URL(raw)
     if (url.protocol !== "http:" && url.protocol !== "https:") return undefined
-    if (url.hostname === "workspace.openagents.org") {
-      return url.origin.replace(
-        "workspace.openagents.org",
-        "workspace-endpoint.openagents.org",
-      )
-    }
     return url.origin
   } catch {
     return undefined

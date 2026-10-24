@@ -20,10 +20,11 @@ describe('desktop account boundaries', () => {
     expect(location.href).toBe('openagents://workspace/index.html#/team');
   });
   it('preserves the central login flow in the web app', () => {
-    const location = { hostname:'workspace.openagents.org', href:'https://workspace.openagents.org/team' };
+    vi.stubEnv('NEXT_PUBLIC_AUTH_BASE', 'https://auth.example.com');
+    const location = { hostname:'workspace.example.com', href:'https://workspace.example.com/team' };
     vi.stubGlobal('window', { location });
     goToCentralLogin();
-    expect(location.href).toBe('https://openagents.org/login?returnTo=https%3A%2F%2Fworkspace.openagents.org%2Fteam');
+    expect(location.href).toBe('https://auth.example.com/login?returnTo=https%3A%2F%2Fworkspace.example.com%2Fteam');
   });
 });
 
@@ -36,22 +37,32 @@ it('redirects signed-out preview visitors to login with a return path', () => {
 
 
 it('preserves the exact preview invitation when using central login', () => {
-  const href = 'https://workspace-preview.openagents.org/invite/invite-token';
-  const location = { hostname: 'workspace-preview.openagents.org', href };
+  vi.stubEnv('NEXT_PUBLIC_AUTH_BASE', 'https://auth.example.com');
+  const href = 'https://preview.example.com/invite/invite-token';
+  const location = { hostname: 'preview.example.com', href };
   vi.stubGlobal('window', { location });
   const popup = vi.fn();
   goToCentralLogin(popup, { forceCentral: true });
   expect(popup).not.toHaveBeenCalled();
   const login = new URL(location.href);
-  expect(login.origin + login.pathname).toBe('https://openagents.org/login');
+  expect(login.origin + login.pathname).toBe('https://auth.example.com/login');
   expect(login.searchParams.get('returnTo')).toBe(href);
 });
 
 it('can bypass inline login even on localhost', () => {
+  vi.stubEnv('NEXT_PUBLIC_AUTH_BASE', 'https://auth.example.com');
   const location = { hostname: 'localhost', href: 'http://localhost:3000/invite/test' };
   vi.stubGlobal('window', { location });
   const popup = vi.fn();
   goToCentralLogin(popup, { forceCentral: true });
   expect(popup).not.toHaveBeenCalled();
-  expect(location.href).toContain('https://openagents.org/login?returnTo=');
+  expect(location.href).toContain('https://auth.example.com/login?returnTo=');
+});
+
+it('does not invent an official login host when authBase is missing', () => {
+  vi.stubEnv('NEXT_PUBLIC_AUTH_BASE', '');
+  const location = { hostname: 'workspace.example.com', href: 'https://workspace.example.com/team' };
+  vi.stubGlobal('window', { location });
+  goToCentralLogin();
+  expect(location.href).toBe('https://workspace.example.com/team');
 });

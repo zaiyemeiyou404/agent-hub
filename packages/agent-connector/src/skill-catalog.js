@@ -35,7 +35,7 @@ const SKILL_CATALOG = [
     category: 'collaboration',
     icon: 'globe',
     moduleKey: 'browser',
-    defaultEnabled: true,
+    defaultEnabled: false,
     toggleable: true,
   },
   {
@@ -45,7 +45,7 @@ const SKILL_CATALOG = [
     category: 'collaboration',
     icon: 'cloud',
     moduleKey: 'tunnel',
-    defaultEnabled: true,
+    defaultEnabled: false,
     toggleable: true,
   },
   {

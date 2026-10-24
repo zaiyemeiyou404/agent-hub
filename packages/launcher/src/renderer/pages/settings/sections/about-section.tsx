@@ -15,7 +15,6 @@ import type { RuntimeInfo, SystemInfo } from "@renderer/types"
 const REPO = "https://github.com/openagents-org/openagents"
 
 const LINKS = [
-  { id: "docs", url: "https://openagents.org/docs" },
   { id: "repo", url: REPO },
   { id: "issues", url: `${REPO}/issues` },
   { id: "releases", url: `${REPO}/releases` },

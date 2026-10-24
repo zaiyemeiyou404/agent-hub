@@ -6,9 +6,10 @@ const { WorkspaceClient, SessionRevokedError } = require('../src/workspace-clien
 const http = require('http');
 
 describe('WorkspaceClient', () => {
-  it('constructs with default endpoint', () => {
+  it('rejects a missing endpoint instead of using an official host', async () => {
     const client = new WorkspaceClient();
-    assert.equal(client.endpoint, 'https://workspace-endpoint.openagents.org');
+    assert.equal(client.endpoint, '');
+    await assert.rejects(() => client._get('/v1/health'), /configuration_required/);
   });
 
   it('constructs with custom endpoint and strips trailing slash', () => {
@@ -17,7 +18,7 @@ describe('WorkspaceClient', () => {
   });
 
   it('_wsHeaders returns correct auth headers', () => {
-    const client = new WorkspaceClient();
+    const client = new WorkspaceClient('https://api.example.com');
     const headers = client._wsHeaders('test-token-123');
     assert.equal(headers['Content-Type'], 'application/json');
     assert.equal(headers['X-Workspace-Token'], 'test-token-123');

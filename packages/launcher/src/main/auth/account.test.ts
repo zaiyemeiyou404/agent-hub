@@ -73,7 +73,7 @@ describe("session upkeep while a workspace stays open", () => {
     stored = { ...SESSION, kind, expiresAt: Math.floor(Date.now() / 1000) + seconds,
       ...(kind === 'firebase' ? { refreshToken: 'refresh' } : {}) }
     const onChange = vi.fn()
-    const manager = new AccountManager({ endpoint: () => undefined, openExternal: () => {}, onChange })
+    const manager = new AccountManager({ endpoint: () => "https://api.example.com", openExternal: () => {}, onChange })
     manager.getAccount()
     return { manager, onChange }
   }
@@ -176,7 +176,7 @@ describe("AccountManager.signIn", () => {
   it("opens the workspace's desktop landing page, not the central login", async () => {
     const browser = browserThatSignsIn(() => ({ session: SESSION }))
     const manager = new AccountManager({
-      endpoint: () => undefined,
+      endpoint: () => "https://workspace.example.com",
       openExternal: browser.openExternal,
       onChange: () => {},
     })
@@ -184,7 +184,7 @@ describe("AccountManager.signIn", () => {
     await manager.signIn()
 
     const opened = new URL(browser.opened[0])
-    expect(opened.origin).toBe("https://workspace.openagents.org")
+    expect(opened.origin).toBe("https://workspace.example.com")
     expect(opened.pathname).toBe("/auth/desktop")
     // A returnTo aimed at /auth/callback is what made the central login skip
     // minting a token at all — the launcher must never build that URL.
@@ -201,7 +201,7 @@ describe("AccountManager.signIn", () => {
     )
     const opened: string[] = []
     const manager = new AccountManager({
-      endpoint: () => undefined,
+      endpoint: () => "https://workspace.example.com",
       openExternal: (url) => opened.push(url),
       onChange: () => {},
     })
@@ -216,7 +216,7 @@ describe("AccountManager.signIn", () => {
     const seen: Array<unknown> = []
     const browser = browserThatSignsIn(() => ({ session: SESSION }))
     const manager = new AccountManager({
-      endpoint: () => undefined,
+      endpoint: () => "https://workspace.example.com",
       openExternal: browser.openExternal,
       onChange: (info) => seen.push(info),
     })
@@ -232,7 +232,7 @@ describe("AccountManager.signIn", () => {
   it("surfaces the reason when the page reports one", async () => {
     const browser = browserThatSignsIn(() => ({ error: "SIGN_IN_REJECTED" }))
     const manager = new AccountManager({
-      endpoint: () => undefined,
+      endpoint: () => "https://workspace.example.com",
       openExternal: browser.openExternal,
       onChange: () => {},
     })
@@ -251,7 +251,7 @@ describe("AccountManager.signIn", () => {
     }
     const gone: Array<unknown> = []
     const manager = new AccountManager({
-      endpoint: () => undefined,
+      endpoint: () => "https://workspace.example.com",
       openExternal: () => {},
       onChange: (info) => gone.push(info),
     })
@@ -271,7 +271,11 @@ describe("AccountManager.signIn", () => {
  * for a deployment with no account service in front of it.
  */
 describe("AccountManager email authentication", () => {
-  const ACCOUNT_API = "https://endpoint.openagents.org"
+  const ACCOUNT_API = "https://endpoint.example.com"
+
+  beforeEach(() => {
+    vi.stubEnv("OPENAGENTS_ACCOUNT_API_BASE", ACCOUNT_API)
+  })
 
   /** Answer each host with what it really returns; record who was asked. */
   function accountService(
@@ -319,7 +323,7 @@ describe("AccountManager email authentication", () => {
     const service = accountService()
     vi.stubGlobal("fetch", service.fetch)
     const manager = new AccountManager({
-      endpoint: () => undefined,
+      endpoint: () => "https://workspace.example.com",
       openExternal: () => {},
       onChange: () => {},
     })
@@ -339,7 +343,7 @@ describe("AccountManager email authentication", () => {
     const service = accountService()
     vi.stubGlobal("fetch", service.fetch)
     const manager = new AccountManager({
-      endpoint: () => undefined,
+      endpoint: () => "https://workspace.example.com",
       openExternal: () => {},
       onChange: () => {},
     })
@@ -364,7 +368,7 @@ describe("AccountManager email authentication", () => {
     })
     vi.stubGlobal("fetch", service.fetch)
     const manager = new AccountManager({
-      endpoint: () => undefined,
+      endpoint: () => "https://workspace.example.com",
       openExternal: () => {},
       onChange: () => {},
     })
@@ -387,7 +391,7 @@ describe("AccountManager email authentication", () => {
     })
     vi.stubGlobal("fetch", service.fetch)
     const manager = new AccountManager({
-      endpoint: () => undefined,
+      endpoint: () => "https://workspace.example.com",
       openExternal: () => {},
       onChange: () => {},
     })
@@ -406,7 +410,7 @@ describe("AccountManager email authentication", () => {
     })
     vi.stubGlobal("fetch", service.fetch)
     const manager = new AccountManager({
-      endpoint: () => undefined,
+      endpoint: () => "https://workspace.example.com",
       openExternal: () => {},
       onChange: () => {},
     })
@@ -423,7 +427,7 @@ describe("AccountManager email authentication", () => {
     const service = accountService()
     vi.stubGlobal("fetch", service.fetch)
     const onChange = vi.fn()
-    const manager = new AccountManager({ endpoint: () => undefined, openExternal: vi.fn(), onChange })
+    const manager = new AccountManager({ endpoint: () => "https://workspace.example.com", openExternal: vi.fn(), onChange })
 
     const result = await manager.signUpWithPassword(" A@EXAMPLE.COM ", "NewAccount1!", " A ")
 
@@ -445,7 +449,7 @@ describe("AccountManager email authentication", () => {
   ])("keeps duplicate registration failures in the account service (%s)", async (response) => {
     const service = accountService({ "/v1/auth/register": response })
     vi.stubGlobal("fetch", service.fetch)
-    const manager = new AccountManager({ endpoint: () => undefined, openExternal: vi.fn(), onChange: vi.fn() })
+    const manager = new AccountManager({ endpoint: () => "https://workspace.example.com", openExternal: vi.fn(), onChange: vi.fn() })
     await expect(manager.signUpWithPassword("a@example.com", "NewAccount1!")).rejects.toThrow("SIGN_UP_EMAIL_EXISTS")
     expect(service.calls).toHaveLength(1)
     expect(stored).toBeNull()
@@ -454,7 +458,7 @@ describe("AccountManager email authentication", () => {
   it("reports an already-created account when opening Workspace fails", async () => {
     const service = accountService({ "/v1/auth/workspace-handoff": { status: 503 } })
     vi.stubGlobal("fetch", service.fetch)
-    const manager = new AccountManager({ endpoint: () => undefined, openExternal: vi.fn(), onChange: vi.fn() })
+    const manager = new AccountManager({ endpoint: () => "https://workspace.example.com", openExternal: vi.fn(), onChange: vi.fn() })
     await expect(manager.signUpWithPassword("a@example.com", "NewAccount1!")).rejects.toThrow("SIGN_UP_SESSION_FAILED")
     expect(service.calls).toHaveLength(2)
     expect(stored).toBeNull()
@@ -463,7 +467,7 @@ describe("AccountManager email authentication", () => {
   it.each(["short1A", "lowercaseonly", "Qwerty123"])("rejects a weak registration password before submitting it: %s", async (password) => {
     const service = accountService()
     vi.stubGlobal("fetch", service.fetch)
-    const manager = new AccountManager({ endpoint: () => undefined, openExternal: vi.fn(), onChange: vi.fn() })
+    const manager = new AccountManager({ endpoint: () => "https://workspace.example.com", openExternal: vi.fn(), onChange: vi.fn() })
     await expect(manager.signUpWithPassword("a@example.com", password)).rejects.toThrow("SIGN_UP_WEAK_PASSWORD")
     expect(service.calls).toHaveLength(0)
   })

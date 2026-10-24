@@ -64,6 +64,9 @@ services:
       context: ./frontend
       args:
         NEXT_PUBLIC_API_URL: http://127.0.0.1:18000
+        NEXT_PUBLIC_AUTH_BASE: http://127.0.0.1:18000
+        NEXT_PUBLIC_WEB_BASE: http://127.0.0.1:13000
+        NEXT_PUBLIC_AGHUB_DEV_LOOPBACK: "1"
         NEXT_PUBLIC_INLINE_LOGIN: "1"
     ports: ["127.0.0.1:13000:3000"]
     networks: [test_internal]

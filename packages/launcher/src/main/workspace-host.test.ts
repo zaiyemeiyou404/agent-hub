@@ -129,10 +129,10 @@ describe('shared workspace host', () => {
     expect(() => host.show('team', bounds)).toThrow(WORKSPACE_BUNDLE_MISSING)
     expect(fakes.contents.loadURL).not.toHaveBeenCalled()
   })
-  it('falls back to the hosted app in a dev checkout without a bundle', () => {
+  it('does not load an official host when a dev checkout has no bundle and no web base', () => {
     fakes.bundle = false
     const host = makeHost()
-    host.show('team', bounds)
-    expect(fakes.contents.loadURL).toHaveBeenCalledWith('https://workspace.openagents.org/team')
+    expect(() => host.show('team', bounds)).toThrow(/configuration_required/)
+    expect(fakes.contents.loadURL).not.toHaveBeenCalled()
   })
 })

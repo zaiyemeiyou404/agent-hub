@@ -6,7 +6,6 @@ const path = require('path');
 // Served by the workspace backend from the repo's /registry files (one JSON
 // per agent type, models resolved server-side) — the same catalog the
 // workspace UI reads. See workspace/backend/app/services/agent_registry.py.
-const DEFAULT_REGISTRY_URL = 'https://workspace-endpoint.openagents.org/v1/agent-registry';
 const CACHE_FILE = 'agent_catalog.json';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -35,12 +34,14 @@ function _sortCatalog(catalog) {
 /**
  * Agent registry — fetches the catalog of available agent types.
  *
- * Priority: remote API → local cache (24h) → bundled registry.json
+ * Priority: bundled registry.json, then an explicitly enabled remote URL.
+ * A missing remote setting does not contact an official catalog.
  */
 class Registry {
-  constructor(configDir, registryUrl) {
+  constructor(configDir, registryUrl, options = {}) {
     this.configDir = configDir;
-    this.registryUrl = registryUrl || DEFAULT_REGISTRY_URL;
+    this.remoteEnabled = options.remoteEnabled === true && !!registryUrl;
+    this.registryUrl = this.remoteEnabled ? registryUrl : null;
     this.cacheFile = path.join(configDir, CACHE_FILE);
     this._catalog = null; // in-memory cache
   }
@@ -52,23 +53,23 @@ class Registry {
   async getCatalog() {
     if (this._catalog) return this._catalog;
 
-    // Try cache first (avoids network on every call)
-    const cached = this._loadCache();
-    if (cached) {
-      this._catalog = _sortCatalog(this._mergeBundled(cached));
-      this._refreshInBackground();
+    const bundled = this._loadBundled();
+    if (Array.isArray(bundled) && bundled.length > 0) {
+      this._catalog = _sortCatalog(this._mergeBundled(bundled));
       return this._catalog;
     }
 
-    // No cache — try remote
+    if (!this.remoteEnabled) {
+      this._catalog = [];
+      return this._catalog;
+    }
+
     const remote = await this._fetchRemote();
     if (remote) {
       this._catalog = _sortCatalog(this._mergeBundled(remote));
       return this._catalog;
     }
-
-    // Fallback to bundled
-    this._catalog = _sortCatalog(this._loadBundled());
+    this._catalog = [];
     return this._catalog;
   }
 
@@ -207,6 +208,7 @@ class Registry {
   }
 
   async _fetchRemote() {
+    if (!this.remoteEnabled || !this.registryUrl) return null;
     try {
       const data = await httpGetJson(this.registryUrl, 5000);
       // API returns { data: [...] } or directly [...]

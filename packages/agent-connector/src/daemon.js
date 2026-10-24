@@ -1581,7 +1581,17 @@ async _runNodeCommand(n, cmd) {
     const { skillsToDisabledModules } = require('./skill-catalog');
     const { redactDiagnostic } = require('./adapters/health-status');
     const agentType = agentCfg.type || 'openclaw';
-    const endpoint = network.endpoint || 'https://workspace-endpoint.openagents.org';
+    const { acceptExplicitServiceUrl } = require('./service-endpoints');
+    let endpoint;
+    try {
+      endpoint = acceptExplicitServiceUrl(network.endpoint || process.env.OPENAGENTS_ENDPOINT, 'api');
+    } catch {
+      info.state = 'error';
+      info.errorReason = 'configuration_required';
+      info.lastError = 'configuration_required';
+      this._writeStatus();
+      return;
+    }
 
     let adapter;
     try {

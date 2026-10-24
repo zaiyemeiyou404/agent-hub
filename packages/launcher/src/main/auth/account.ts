@@ -1,4 +1,5 @@
 import { accountApiBase, apiBase, webBase } from "./endpoints"
+import { tokenForService } from "./service-endpoints"
 import { authFetch } from "./http"
 import { registrationPasswordError } from "../../shared/account-registration"
 import {
@@ -120,7 +121,15 @@ export class AccountManager {
   private _ensureLoaded(): void {
     if (this._loaded) return
     this._loaded = true
-    this._session = loadSession()
+    const session = loadSession()
+    if (session && !session.boundApiBase) {
+      try {
+        session.boundApiBase = apiBase(this._deps.endpoint())
+      } catch {
+        // Unbound until an endpoint exists. Requests refuse the token.
+      }
+    }
+    this._session = session
     this._scheduleSessionCheck()
   }
 
@@ -138,6 +147,15 @@ export class AccountManager {
   }
 
   private _set(session: AccountSession | null): void {
+    if (session) {
+      let boundApiBase = session.boundApiBase
+      try {
+        boundApiBase = apiBase(this._deps.endpoint())
+      } catch {
+        boundApiBase = session.boundApiBase
+      }
+      session = { ...session, boundApiBase }
+    }
     this._session = session
     this._loaded = true
     if (session) saveSession(session)
@@ -218,6 +236,13 @@ export class AccountManager {
   } | null {
     this._ensureLoaded()
     if (!this._session) return null
+    let current = ""
+    try {
+      current = apiBase(this._deps.endpoint())
+    } catch {
+      return null
+    }
+    if (!tokenForService({ apiBase: this._session.boundApiBase, token: this._session.token }, current)) return null
     const { token, email, displayName, expiresAt } = this._session
     return { token, email, displayName, expiresAt }
   }
@@ -591,8 +616,13 @@ export class AccountManager {
   }
 
   private async _request<T>(path: string, init: RequestInit): Promise<T> {
-    const token = await this.bearer()
-    const res = await authFetch(`${apiBase(this._deps.endpoint())}${path}`, {
+    const base = apiBase(this._deps.endpoint())
+    const token = tokenForService(
+      this._session ? { apiBase: this._session.boundApiBase, token: this._session.token } : null,
+      base,
+    )
+    if (!token) throw new Error("configuration_required")
+    const res = await authFetch(`${base}${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",

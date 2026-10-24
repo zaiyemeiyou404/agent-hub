@@ -3,7 +3,7 @@
 const https = require('https');
 const http = require('http');
 
-const DEFAULT_ENDPOINT = 'https://workspace-endpoint.openagents.org';
+const { acceptExplicitServiceUrl, ConfigurationRequired } = require('./service-endpoints');
 
 /**
  * The error a request deadline produces. Every request carries a hard
@@ -82,7 +82,7 @@ class WorkspaceClient {
    *   pass nothing and send no agent identity.
    */
   constructor(endpoint, { agentName } = {}) {
-    this.endpoint = (endpoint || DEFAULT_ENDPOINT).replace(/\/$/, '');
+    this.endpoint = endpoint ? acceptExplicitServiceUrl(endpoint, 'api') : '';
     this.agentName = typeof agentName === 'string' && agentName.trim() ? agentName.trim() : null;
   }
 
@@ -1193,7 +1193,14 @@ class WorkspaceClient {
     };
   }
 
+  _requireEndpoint() {
+    if (!this.endpoint) return Promise.reject(new ConfigurationRequired('api'));
+    return null;
+  }
+
   _get(urlPath, headers = {}, timeout = 15000) {
+    const missing = this._requireEndpoint();
+    if (missing) return missing;
     headers = this._withAgent(headers);
     const fullUrl = this.endpoint + urlPath;
 
@@ -1245,6 +1252,8 @@ class WorkspaceClient {
   }
 
   _getRaw(urlPath, headers = {}, timeout = 15000) {
+    const missing = this._requireEndpoint();
+    if (missing) return missing;
     headers = this._withAgent(headers);
     const fullUrl = this.endpoint + urlPath;
 
@@ -1278,6 +1287,8 @@ class WorkspaceClient {
   }
 
   _post(urlPath, body, headers = {}, timeout = 30000) {
+    const missing = this._requireEndpoint();
+    if (missing) return missing;
     headers = this._withAgent(headers);
     if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
     const jsonBody = JSON.stringify(body);
@@ -1331,6 +1342,8 @@ class WorkspaceClient {
   }
 
   _put(urlPath, body, headers = {}, timeout = 30000) {
+    const missing = this._requireEndpoint();
+    if (missing) return missing;
     headers = this._withAgent(headers);
     if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
     const jsonBody = JSON.stringify(body);
@@ -1376,6 +1389,8 @@ class WorkspaceClient {
   }
 
   _patch(urlPath, body, headers = {}, timeout = 15000) {
+    const missing = this._requireEndpoint();
+    if (missing) return missing;
     headers = this._withAgent(headers);
     if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
     const jsonBody = JSON.stringify(body);
@@ -1416,6 +1431,8 @@ class WorkspaceClient {
   }
 
   _delete(urlPath, headers = {}, network) {
+    const missing = this._requireEndpoint();
+    if (missing) return missing;
     headers = this._withAgent(headers);
     const fullUrl = this.endpoint + urlPath + (network ? `?network=${network}` : '');
 

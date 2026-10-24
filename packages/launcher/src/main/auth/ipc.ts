@@ -11,6 +11,7 @@ import { openExternalSafely } from "../web-security"
 import { WorkspaceHost, type ViewBounds } from "../workspace-host"
 import { AccountManager, type AccountWorkspace } from "./account"
 import { webBase } from "./endpoints"
+import { ConfigurationRequiredError } from "./service-endpoints"
 import type { AccountInfo } from "./session-store"
 import type { NodeStatus } from "../agent-manager"
 import { pushNotification } from "../notifications"
@@ -21,6 +22,15 @@ import { pushNotification } from "../notifications"
  * Every channel here is workspace-scoped: nothing under My Agents calls into
  * it, so a machine that never signs in never reaches this file.
  */
+
+function configuredWeb(endpoint: string | undefined): string {
+  try {
+    return webBase(endpoint)
+  } catch (err) {
+    if (err instanceof ConfigurationRequiredError) return ""
+    throw err
+  }
+}
 
 export interface AccountIpcDeps {
   /**
@@ -237,7 +247,7 @@ export function registerAccountIpc(deps: AccountIpcDeps): AccountManager {
     event.returnValue = {
       session: host.currentSession(),
       apiUrl: deps.endpoint(),
-      webUrl: webBase(deps.endpoint()),
+      webUrl: configuredWeb(deps.endpoint()),
       theme,
       locale: toWorkspaceLocale(language),
     }
