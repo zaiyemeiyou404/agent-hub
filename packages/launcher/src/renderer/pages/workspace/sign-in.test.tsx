@@ -31,12 +31,12 @@ it("offers registration beside email sign-in and preserves the email when switch
   fill("sign-in-email", "person@example.test")
   fill("sign-in-password", "ExistingPassword1!")
   fireEvent.click(screen.getByRole("button", { name: "Create an account" }))
-  expect(screen.getByRole("heading", { name: "Create your OpenAgents account" })).toBeVisible()
+  expect(screen.getByRole("heading", { name: "Create your AgentHub account" })).toBeVisible()
   expect(document.getElementById("sign-in-email")).toHaveValue("person@example.test")
   expect(document.getElementById("sign-in-password")).toHaveValue("")
   expect(document.getElementById("sign-in-password")).toHaveAttribute("autocomplete", "new-password")
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }))
-  expect(screen.getByRole("heading", { name: "Sign in to OpenAgents" })).toBeVisible()
+  expect(screen.getByRole("heading", { name: "Sign in to AgentHub" })).toBeVisible()
   expect(document.getElementById("sign-in-email")).toHaveValue("person@example.test")
 })
 
@@ -75,7 +75,7 @@ it("switches to sign-in if the account was created but Workspace could not open"
   fill("sign-up-confirm", "NewAccount1!")
   fireEvent.click(screen.getByRole("button", { name: "Create account" }))
   expect(await screen.findByText("Your account was created, but Workspace could not open. Please sign in to continue.")).toBeVisible()
-  expect(screen.getByRole("heading", { name: "Sign in to OpenAgents" })).toBeVisible()
+  expect(screen.getByRole("heading", { name: "Sign in to AgentHub" })).toBeVisible()
   expect(document.getElementById("sign-in-email")).toHaveValue("person@example.test")
 })
 

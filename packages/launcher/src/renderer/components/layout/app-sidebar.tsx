@@ -47,9 +47,9 @@ function Brand(): React.JSX.Element {
           Everything here is rem-sized, so the fit holds at every UI scale. */}
       <span
         className="min-w-0 truncate text-sm font-semibold tracking-tight text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden"
-        title="OpenAgents"
+        title="AgentHub"
       >
-        OpenAgents
+        AgentHub
       </span>
       <NotificationBell className="sidebar-no-drag ml-auto group-data-[collapsible=icon]:ml-0" />
       {/* Collapsed, this is the one control that gets the rail back, so it has

@@ -1852,7 +1852,8 @@ async _runNodeCommand(n, cmd) {
 
   _writeStatus() {
     try {
-      const status = { agents: this.getStatus(), pid: process.pid };
+      const status = { agents: this.getStatus(), pid: process.pid,
+        core: require('./core-identity').verifyManagedCore() };
       fs.writeFileSync(this.config.statusFile, JSON.stringify(status, null, 2), 'utf-8');
     } catch {}
   }

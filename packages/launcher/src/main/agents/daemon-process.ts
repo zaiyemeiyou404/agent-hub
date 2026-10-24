@@ -17,7 +17,9 @@ import {
   DAEMON_STATUS_FILE,
   PORTABLE_NODE_DIR,
 } from "./paths"
-import { coreTiers, resolveWorkingNode, unpackedPath } from "./runtime"
+import { getVerifiedCore, resolveWorkingNode } from "./runtime"
+import { assertDaemonCoreIdentity } from "./daemon-identity"
+import { createHash } from "crypto"
 
 /** Launcher-side note in the daemon's own log, so both sides share a timeline. */
 export function appendDaemonLog(message: string): void {
@@ -146,6 +148,9 @@ export async function stopLeftoverDaemon(): Promise<void> {
   }
   const pid = getLiveDaemonPid({ getDaemonPid: pidFromFile })
   if (!pid) return
+  assertDaemonCoreIdentity(
+    JSON.parse(fs.readFileSync(DAEMON_STATUS_FILE, "utf8")), getVerifiedCore(),
+  )
   appendDaemonLog(`stopping daemon ${pid} to replace the Node runtime`)
   try {
     process.kill(pid)
@@ -195,10 +200,16 @@ export function startDaemon(
   pid?: number
   message: string
 } {
+  // Never stop/reuse an existing incompatible daemon or kill by process name.
+  let core
   try {
-    const stopDaemon = connector?.stopDaemon as (() => void) | undefined
-    stopDaemon?.call(connector)
-  } catch {}
+    core = getVerifiedCore(true)
+    const existing = getLiveDaemonPid(connector)
+    if (existing) {
+      assertDaemonCoreIdentity(JSON.parse(fs.readFileSync(DAEMON_STATUS_FILE, "utf8")), core)
+      return { success: true, pid: existing, message: "Verified AgentHub daemon already running" }
+    }
+  } catch (error) { return { success:false, message:(error as Error).message } }
 
   const portableNodeDir = PORTABLE_NODE_DIR
   const openagentsDir = CONFIG_DIR
@@ -226,42 +237,7 @@ export function startDaemon(
     path.delimiter,
   )
 
-  // The daemon runs the same core the app does — newest first, see coreTiers.
-  // That ordering matters as much here as in-process: the daemon is what
-  // actually drives the adapters, so a runtime-downloaded core older than the
-  // one packaged with the app would keep running yesterday's agents.
-  //
-  // Paths are rewritten out of app.asar because the packaged copy has to be a
-  // real on-disk file the spawned node can execute. Having it at all is what
-  // lets the daemon start when the downloaded core never landed (offline /
-  // AV-blocked) — the failure that used to strand Windows users at "Daemon
-  // failed to start".
-  const tiers = coreTiers()
-  if (!tiers.some((t) => t.source === "bundled"))
-    appendDaemonLog("bundled agent-launcher CLI unresolvable")
-
-  let cliPath: string | null = null
-  const cliCandidates = tiers.map((t) =>
-    unpackedPath(path.join(t.dir, "bin", "agent-connector.js")),
-  )
-  for (const c of cliCandidates) {
-    try {
-      if (fs.existsSync(c)) {
-        cliPath = c
-        break
-      }
-    } catch {}
-  }
-  if (!cliPath) {
-    appendDaemonLog(
-      `agent-launcher CLI not found; checked ${cliCandidates.join(", ")}`,
-    )
-    return {
-      success: false,
-      message:
-        "agent-launcher CLI not found. Install an agent first via the Install tab.",
-    }
-  }
+  const cliPath = core.entrypoints.cli
 
   // Pick a node binary that actually launches. The bundled portable
   // node.exe is preferred when usable, but on some Windows machines it's
@@ -271,7 +247,14 @@ export function startDaemon(
   // Electron is always present, so the daemon can start without depending on
   // a separately-installed node runtime.
   let nodeBin = resolveWorkingNode(portableNodeDir, enhancedPath)
-  const daemonEnv: NodeJS.ProcessEnv = { ...process.env }
+  const manifestPath = path.join(core.directory, "..", "aghub-core-manifest.json")
+  // Development staging keeps its manifest at the same fixed staging root.
+  const externalManifest = fs.existsSync(manifestPath) ? manifestPath : path.join(core.directory, "..", "manifest.json")
+  const daemonEnv: NodeJS.ProcessEnv = { ...process.env,
+    AGHUB_CORE_MANIFEST_SHA256: createHash("sha256").update(fs.readFileSync(externalManifest)).digest("hex"),
+    WS_NO_BUFFER_UTIL:"1", WS_NO_UTF_8_VALIDATE:"1",
+  }
+  delete daemonEnv.NODE_PATH
   if (!nodeBin) {
     nodeBin = process.execPath
     daemonEnv.ELECTRON_RUN_AS_NODE = "1"
@@ -283,7 +266,7 @@ export function startDaemon(
   try {
     fs.mkdirSync(CONFIG_DIR, { recursive: true })
     const logFd = fs.openSync(DAEMON_LOG_FILE, "a")
-    appendDaemonLog(`starting daemon: node="${nodeBin}" cli="${cliPath}"`)
+    appendDaemonLog(`starting verified daemon: version=${core.version} source=${core.sourceSha} node="${nodeBin}" cli="${cliPath}"`)
 
     // `detached` is what keeps this invisible on Windows: it maps to
     // DETACHED_PROCESS, so the daemon runs with no console at all. (windowsHide

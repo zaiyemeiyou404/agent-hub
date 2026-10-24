@@ -1,9 +1,9 @@
 {
-  "name": "openagents",
+  "name": "aghub-launcher",
   "version": "1.1.1",
-  "description": "OpenAgents — install, configure, and manage your AI agents",
+  "description": "AgentHub — configure and manage your AI agents",
   "main": "out/main/index.js",
-  "homepage": "https://github.com/openagents-org/openagents",
+  "homepage": "https://github.com/zaiyemeiyou404/agent-hub",
   "author": {
     "name": "OpenAgents",
     "email": "team@openagents.org"
@@ -11,18 +11,18 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/openagents-org/openagents.git",
+    "url": "https://github.com/zaiyemeiyou404/agent-hub.git",
     "directory": "packages/launcher"
   },
   "scripts": {
     "postinstall": "node ./scripts/ensure-electron.mjs",
-    "dev": "electron-vite dev",
+    "dev": "npm run prepare:core && electron-vite dev",
     "typecheck": "tsc -b",
     "check:changelog": "node ./scripts/check-changelog.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "build": "npm run build:workspace && electron-vite build",
+    "build": "npm run prepare:core && npm run build:workspace && electron-vite build",
     "build:workspace": "npm --prefix ../../workspace/frontend run build:desktop && node ./scripts/check-workspace-bundle.mjs",
     "preview": "electron-vite preview",
     "build:mac": "npm run build && electron-builder --mac --x64 --arm64 --publish never",
@@ -31,11 +31,11 @@
     "build:win": "npm run build && electron-builder --win --publish never",
     "build:linux": "npm run build && electron-builder --linux --publish never",
     "build:all": "npm run build && electron-builder --win --mac --linux --publish never",
-    "dist": "npm run build && electron-builder --publish always"
+    "dist": "npm run build && electron-builder --publish always",
+    "prepare:core": "node ./scripts/prepare-aghub-core.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
-    "@openagents-org/agent-launcher": "file:../agent-connector",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -75,15 +75,12 @@
     "vitest": "^4.1.7"
   },
   "build": {
-    "appId": "com.openagents.launcher",
-    "productName": "OpenAgents",
-    "artifactName": "OpenAgents-${version}-${os}-${arch}.${ext}",
+    "appId": "com.zaiyemeiyou.aghub",
+    "productName": "AgentHub",
+    "artifactName": "AgentHub-${version}-${os}-${arch}.${ext}",
     "files": [
       "out/**/*",
       "package.json",
-      "node_modules/@openagents-org/**/*",
-      "node_modules/ws/**/*",
-      "node_modules/blessed/**/*",
       "node_modules/electron-updater/**/*",
       "node_modules/builder-util-runtime/**/*",
       "node_modules/fs-extra/**/*",
@@ -99,13 +96,10 @@
       "node_modules/tiny-typed-emitter/**/*",
       "node_modules/sax/**/*",
       "node_modules/debug/**/*",
-      "node_modules/ms/**/*"
+      "node_modules/ms/**/*",
+      ".aghub-core/manifest.json"
     ],
-    "asarUnpack": [
-      "node_modules/@openagents-org/**/*",
-      "node_modules/ws/**/*",
-      "node_modules/blessed/**/*"
-    ],
+    "asarUnpack": [],
     "extraResources": [
       {
         "from": "assets",
@@ -118,6 +112,14 @@
       {
         "from": "../../workspace/frontend/dist-desktop",
         "to": "workspace"
+      },
+      {
+        "from": ".aghub-core/core",
+        "to": "aghub-core"
+      },
+      {
+        "from": ".aghub-core/manifest.json",
+        "to": "aghub-core-manifest.json"
       }
     ],
     "directories": {
@@ -134,9 +136,7 @@
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "entitlements.mac.plist",
-      "entitlementsInherit": "entitlements.mac.plist",
-      "identity": "ZHONGYUAN ZHU (AP69DBR725)",
-      "notarize": true
+      "entitlementsInherit": "entitlements.mac.plist"
     },
     "dmg": {
       "title": "${productName} ${version}"
@@ -145,18 +145,6 @@
       "target": [
         {
           "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "msi",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
           "arch": [
             "x64"
           ]
@@ -169,12 +157,6 @@
       "allowToChangeInstallationDirectory": true,
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico"
-    },
-    "msi": {
-      "perMachine": true
-    },
-    "portable": {
-      "artifactName": "OpenAgents-${version}-${os}-${arch}-portable.${ext}"
     },
     "linux": {
       "target": [
@@ -193,12 +175,6 @@
       ],
       "icon": "assets/icon.png",
       "category": "Development"
-    },
-    "publish": {
-      "provider": "generic",
-      "url": "https://dl.openagents.org/launcher/stable",
-      "channel": "latest",
-      "useMultipleRangeRequest": false
     }
   }
 }

@@ -55,6 +55,9 @@ export async function prepareCore({ connectorRoot, outputRoot, sourceSha }) {
     }
   };
   addDependencies(source, pkg);
+  // A standalone shipped CLI must not become a development copy if its
+  // neighboring manifest is removed. Record this build-time distinction.
+  fs.writeFileSync(path.join(core, 'package.json'), JSON.stringify({ ...pkg, aghubManagedCore:true }, null, 2) + '\n');
   for (const name of ['LICENSE', 'NOTICE']) {
     const from = path.join(repoRoot, name);
     if (fs.existsSync(from)) copy(from, path.join(core, 'upstream-notices', name));

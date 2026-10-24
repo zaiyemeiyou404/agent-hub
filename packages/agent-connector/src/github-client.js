@@ -3,7 +3,7 @@
 const https = require('https');
 
 const DEFAULT_BASE_URL = 'https://api.github.com';
-const USER_AGENT = '@openagents-org/agent-launcher';
+const USER_AGENT = '@zaiyemeiyou/aghub-connector';
 
 /**
  * Thin GitHub REST API client used by the launcher's GitHub integration.
