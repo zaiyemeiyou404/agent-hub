@@ -1,28 +1,38 @@
 {
   "measuredOn": "2026-10-24",
-  "sourceCommit": "c82873aadffffb17a2cb036b194917f40323f1ef",
+  "sourceCommit": "af1dbf5139b35d09ee677b37aeaf4d95ee2f939a",
+  "generatedFrom": "worktree",
+  "note": "sourceCommit is HEAD at generation. sha256 values are worktree bytes. worktreeStatus records inputs that were not committed at that HEAD. This file does not claim those hashes match an older snapshot.",
   "node": "v24.14.0",
   "platform": "win32",
   "arch": "x64",
   "files": [
     {
       "path": "pyproject.toml",
-      "sha256": "7b54c14543d18e8e5894da824e72843954c69e7508c10d2fdcb5f3f9331077ec"
+      "sha256": "7b54c14543d18e8e5894da824e72843954c69e7508c10d2fdcb5f3f9331077ec",
+      "headBlob": "a3bab0b2b0d0bbda5f7afd20df9c030185ee9869",
+      "worktreeStatus": "clean"
     },
     {
       "path": "LICENSE",
-      "sha256": "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
+      "sha256": "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6",
+      "headBlob": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
+      "worktreeStatus": "clean"
     },
     {
       "path": "packages/launcher/package.json",
       "sha256": "dd42c35bbf98fb98e5521b5b562e6014703c7f564c4415f6089e68bb60ea1758",
+      "headBlob": "e0539d1c180142e28fa1dc443303e363bda3a830",
+      "worktreeStatus": "clean",
       "name": "openagents",
       "version": "1.1.1",
       "license": "MIT"
     },
     {
       "path": "packages/launcher/package-lock.json",
-      "sha256": "a931f53450ef78ee5059dd22eef021b32b6e1df8cf3de6e0c7c70b48e8f67601",
+      "sha256": "6d77964281d64ee819d1ae610800a6ec546253fc886f49df5b1cb28d510427bd",
+      "headBlob": "9ad6986798c2a4bce11890ab7f6da25f53895bad",
+      "worktreeStatus": "M packages/launcher/package-lock.json",
       "name": "openagents",
       "version": "1.1.1",
       "license": null,
@@ -31,11 +41,14 @@
       "connector": {
         "resolved": "../agent-connector",
         "link": true
-      }
+      },
+      "connectorTargetPresent": true
     },
     {
       "path": "packages/agent-connector/package.json",
       "sha256": "f0ceb8d31a20603d0bff7d25b30d13a289c62031bc7590a88ebff102cbf4684f",
+      "headBlob": "418fe378db4f9bc58433b16fd18aa6ab99e8097c",
+      "worktreeStatus": "clean",
       "name": "@openagents-org/agent-launcher",
       "version": "0.2.196",
       "license": "MIT"
@@ -43,16 +56,21 @@
     {
       "path": "packages/agent-connector/package-lock.json",
       "sha256": "466237e8fc37751f2148ac0094cb0dfef7fa4e93a236eb8bc551bb01b226d42f",
+      "headBlob": "512d08f456a0ae120a5aa55fc3f7fd43f25230ec",
+      "worktreeStatus": "clean",
       "name": "@openagents-org/agent-launcher",
       "version": "0.2.196",
       "license": null,
       "lockfileVersion": 3,
       "rootConnectorDependency": null,
-      "connector": null
+      "connector": null,
+      "connectorTargetPresent": false
     },
     {
       "path": "workspace/frontend/package.json",
       "sha256": "e3307bddccc207cf3fc9267eaf3b2aad467d73bd4715661b84a1cdc86dbf02cc",
+      "headBlob": "53a9769188c3d476f6c1bce1d4653813fa2971b9",
+      "worktreeStatus": "clean",
       "name": "openagents-workspace",
       "version": "0.1.0",
       "license": null
@@ -60,27 +78,36 @@
     {
       "path": "workspace/frontend/package-lock.json",
       "sha256": "d74d04ea1402a30517480067fff1af533513ecdcf13f40a5fe773d00f48d18c4",
+      "headBlob": "79c60ea19f7857970444f475c015168f7d4d4f3e",
+      "worktreeStatus": "clean",
       "name": "openagents-workspace",
       "version": "0.1.0",
       "license": null,
       "lockfileVersion": 3,
       "rootConnectorDependency": null,
-      "connector": null
+      "connector": null,
+      "connectorTargetPresent": false
     },
     {
       "path": "sdk/studio/package.json",
       "sha256": "97763dfe7eef50770d1eedb722507ff42435aaacd6d237eec3dcf84500970708",
+      "headBlob": "94df60959e2ef046c84cdd384df4419700d6d051",
+      "worktreeStatus": "clean",
       "name": "openagents-studio",
       "version": "1.0.7",
       "license": "MIT"
     },
     {
       "path": "workspace/backend/requirements.txt",
-      "sha256": "ced978a68a07471edaab62aa61279ce074a2af4796a874352cab493380e133c7"
+      "sha256": "ced978a68a07471edaab62aa61279ce074a2af4796a874352cab493380e133c7",
+      "headBlob": "977381f56ac26888474a05d32b74d5e53c634db8",
+      "worktreeStatus": "clean"
     },
     {
       "path": "workspace/backend/requirements.production.lock",
-      "sha256": "309a46054695f1d601a01750626211a9fb550ff8e7809e059479dfdf8c870e81"
+      "sha256": "309a46054695f1d601a01750626211a9fb550ff8e7809e059479dfdf8c870e81",
+      "headBlob": "2f5a2c919ec642a34b3c633d6135b40e766aa9e8",
+      "worktreeStatus": "clean"
     }
   ]
 }

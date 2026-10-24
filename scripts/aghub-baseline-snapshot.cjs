@@ -8,9 +8,23 @@ const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const files = ['pyproject.toml', 'LICENSE', 'packages/launcher/package.json', 'packages/launcher/package-lock.json', 'packages/agent-connector/package.json', 'packages/agent-connector/package-lock.json', 'workspace/frontend/package.json', 'workspace/frontend/package-lock.json', 'sdk/studio/package.json', 'workspace/backend/requirements.txt', 'workspace/backend/requirements.production.lock'];
+function headBlob(file) {
+  try {
+    return execFileSync('git', ['rev-parse', `HEAD:${file}`], { cwd: root, encoding: 'utf8' }).trim();
+  } catch {
+    return null;
+  }
+}
+
 const entries = files.map(file => {
   const bytes = fs.readFileSync(path.join(root, file));
-  const entry = { path: file, sha256: crypto.createHash('sha256').update(bytes).digest('hex') };
+  const porcelain = execFileSync('git', ['status', '--porcelain', '--', file], { cwd: root, encoding: 'utf8' }).trim();
+  const entry = {
+    path: file,
+    sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+    headBlob: headBlob(file),
+    worktreeStatus: porcelain || 'clean',
+  };
   if (file.endsWith('.json')) {
     const data = JSON.parse(bytes);
     Object.assign(entry, { name: data.name, version: data.version, license: data.license || null });
@@ -18,6 +32,7 @@ const entries = files.map(file => {
       entry.lockfileVersion = data.lockfileVersion;
       entry.rootConnectorDependency = data.packages?.['']?.dependencies?.['@openagents-org/agent-launcher'] || null;
       entry.connector = data.packages?.['node_modules/@openagents-org/agent-launcher'] || null;
+      entry.connectorTargetPresent = Boolean(data.packages?.['../agent-connector']);
     }
   }
   return entry;
@@ -25,6 +40,8 @@ const entries = files.map(file => {
 const snapshot = {
   measuredOn: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' }),
   sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
+  generatedFrom: 'worktree',
+  note: 'sourceCommit is HEAD at generation. sha256 values are worktree bytes. worktreeStatus records inputs that were not committed at that HEAD. This file does not claim those hashes match an older snapshot.',
   node: process.version, platform: process.platform, arch: process.arch,
   files: entries,
 };

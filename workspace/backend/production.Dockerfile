@@ -11,7 +11,8 @@ COPY openagents/ ./openagents/
 COPY cloud_providers/ ./cloud_providers/
 COPY registry/ ./registry/
 COPY alembic.ini entrypoint.sh ./
-RUN chmod +x entrypoint.sh
+# A Windows checkout can supply CRLF. The shebang is only executable as LF.
+RUN sed -i 's/\r$//' entrypoint.sh && chmod +x entrypoint.sh
 ARG RELEASE_SHA
 LABEL org.opencontainers.image.revision=$RELEASE_SHA
 ENV PYTHONPATH=/app PYTHONUNBUFFERED=1

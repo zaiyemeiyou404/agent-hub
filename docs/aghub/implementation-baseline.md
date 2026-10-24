@@ -6,7 +6,7 @@
 
 - 实际基线 `c82873aadffffb17a2cb036b194917f40323f1ef`，已包含原计划 `d32e46c8011dbc6d04735cb612b84ec498943041` 之后的本地文件请求与当前 Connector 绑定改动。沿用该实现，不退回旧基线另写协议。
 - 原仓库 `G:\projects\aghub`、分支 `codex/zai-8-conservative-file-classification`。开工时 tracked 文件干净，存在未跟踪的 `apps/`、`workspace/frontend/dist-android/`；已保留，没有纳入本轮提交。
-- 实施工作树 `G:\codex日常\worktrees\aghub-zai15`，分支 `codex/zai-15-implementation-baseline`，从同一 commit 创建。未复制原目录中的账户、环境文件或构建缓存。
+- 实施工作树 `G:\codex日常\worktrees\aghub-zai15`，分支 `codex/zai-15-implementation-baseline`，从同一 commit 创建。未复制原目录中的账户、环境文件或构建缓存。2026-10-24 续验时工作树回到该分支；`codex/zai-16-independent-endpoints` 仍指向同一提交，没有业务差异。
 - 已读全局存储规则、`G:\projects\AGENTS.md`、`workspace/AGENTS.md`、`AGENT_HUB.md`。preview 共用生产库和文件，不能作为隔离测试环境。实际数据库迁移必须另行说明并协调，本轮没有执行迁移或启动部署。
 - Linear `get_agent_context` 返回工具不存在，未取得共享 field notes；以源码及当前计划核验，不把此错误当作“没有历史记录”。
 
@@ -16,16 +16,16 @@
 | --- | --- | --- |
 | Launcher | `openagents` 1.1.1，MIT | 仍为上游应用标识与发布配置 |
 | Connector | `@openagents-org/agent-launcher` 0.2.196，MIT | Launcher package 与 lock 均为 `file:../agent-connector` 链接；旧文档的 0.2.194 / 0.2.189 漂移不能直接沿用 |
-| Workspace frontend | `openagents-workspace` 0.1.0 | package 未声明 license，需补查组件来源 |
+| Workspace frontend | `openagents-workspace` 0.1.0 | package 无 license 字段，目录无 LICENSE，抽查的源码无 SPDX/Copyright 头；仍按根 Apache-2.0 记录，未做法律复核 |
 | Python 根包 | `openagents` 0.9.3.post20，Apache-2.0 | 不等同 Workspace 服务版本 |
 | SDK Studio | 1.0.7，MIT | 自用最小发行包外的候选可选组件 |
 | Backend | 随 commit 标识；Dockerfile Python 3.12 | 依赖输入与 production constraints 的 SHA-256 见快照 |
 | 本机测试 | Windows 11 x64；Node 24.14.0；Python venv 3.12.15 | CI 原配置为 Ubuntu / Node 22 / Python 3.12，尚未在该环境复跑 |
 | 可用本机 CLI | Codex 0.144.6；OpenCode 1.19.3；Claude Code 2.1.92 | 仅验证版本命令；没有调用付费模型、派发真实项目任务或证明工具审批可用 |
 | OpenCode 适配器 | 测试支持段 1.17.x，新版本会判 degraded | 本机 1.19.3 的真实执行/审批能力交 T04a，不能凭安装成功验收 |
-| Docker Compose | 5.1.0 | 仅用于配置解析，未运行容器 |
+| Docker Compose | 5.1.0；引擎 29.2.1 | 当天更早只做了 `config --quiet`。当前 `aghub-t00-test` 已从工作区构建并在回环端口运行 |
 
-机器生成的 [baseline-snapshot.json](baseline-snapshot.json) 保留输入文件哈希。更新基线时运行 `node scripts/aghub-baseline-snapshot.cjs` 并审查差异；哈希是完整性记录，不是可信签名。
+机器生成的 [baseline-snapshot.json](baseline-snapshot.json) 保留输入文件哈希。2026-10-24 收尾时重新生成：`sourceCommit` 是当时的 HEAD `af1dbf5139b35d09ee677b37aeaf4d95ee2f939a`，哈希取工作区字节。11 个输入里只有 `packages/launcher/package-lock.json` 为未提交修改，其 SHA-256 是 `6d77964281d64ee819d1ae610800a6ec546253fc886f49df5b1cb28d510427bd`，`connectorTargetPresent` 为 true。这不是旧快照 `c82873aad` 的哈希，也不能把旧快照说成当前候选完全一致。更新基线时运行 `node scripts/aghub-baseline-snapshot.cjs` 并审查差异；哈希是完整性记录，不是可信签名。
 
 ## 隔离入口与依赖
 
@@ -33,11 +33,11 @@
 
 本轮复用了 `G:\CodexData\aghub-pytest\Scripts\python.exe`，没有改动该环境。其 FastAPI 0.159.1 / SQLAlchemy 2.0.55 / httpx 0.28.1 / pytest 9.1.1 与 production constraints 的 FastAPI 0.143.0 / SQLAlchemy 2.0.54 不同；本轮结果不是 production lock 环境验收。
 
-后端可复现安装命令仍采用既有 CI：`python -m pip install -r workspace/backend/requirements.txt -c workspace/backend/requirements.production.lock pytest pytest-asyncio PyYAML`。需在独立 Linux/Python 3.12 环境执行；本轮未运行安装或批量升级。constraints 含 Linux 专用 uvloop，不能把 Windows 安装失败当成产品回归。
+后端可复现安装命令仍采用既有 CI：`python -m pip install -r workspace/backend/requirements.txt -c workspace/backend/requirements.production.lock pytest pytest-asyncio PyYAML`。当天较早的记录曾写“尚未安装”。随后已在现有 WSL Ubuntu 上按该命令安装，见 [测试回执](validation.md)。constraints 含 Linux 专用 uvloop，不能把 Windows 安装失败当成产品回归。没有批量升级。
 
-集成环境单独使用 `workspace/docker-compose.aghub-test.yml`，不得与 production/preview Compose 合并。其项目名 `aghub-t00-test`，数据库 `aghub_t00_test` / 用户 `aghub_test`，专用命名卷、internal 网络、回环端口 13000/18000；要求独立随机 `AGHUB_TEST_DB_PASSWORD`，没有 host env_file、外部卷、生产 bind mount 或自动迁移服务。密码只在本地进程/受保护环境中生成，不提交。内部网络限制容器运行时出站，不能限制浏览器、构建下载或宿主 CLI。
+集成环境单独使用 `workspace/docker-compose.aghub-test.yml`，不得与 production/preview Compose 合并。其项目名 `aghub-t00-test`，数据库 `aghub_t00_test` / 用户 `aghub_test`，专用命名卷、普通 bridge、只绑定 `127.0.0.1` 的 13000/18000；数据库端口不发布。Docker 不会把 internal 网络上的端口映射发布到宿主，所以测试网络不再标记 internal。要求独立随机 `AGHUB_TEST_DB_PASSWORD`，没有 host env_file、外部卷、生产 bind mount 或自动迁移服务。密码只在本地进程/受保护环境中生成，不提交。该网络不再限制容器出站；它也不限制浏览器、构建下载或宿主 CLI。
 
-本轮只以一次性合成密码运行 `docker compose -f workspace/docker-compose.aghub-test.yml config --quiet`；不输出渲染后的连接串。尚未建库、建立 schema、构建镜像或证明 ready 可用。后续集成测试需先说明 schema 初始化范围，完成必要协调，再对该独立数据库操作；不能直接照搬生产 `up` 的自动 migrate 路径。
+2026-10-24 先用一次性合成密码做了 `config --quiet`。引擎恢复后，同一测试文件已构建并启动 `aghub-t00-test`：数据库 `aghub_t00_test` 已由 Postgres 镜像创建，public 基表为 0，后端 `/ready` 只证明 `SELECT 1`。没有执行 Alembic，也没有把生产 `up` 的自动迁移路径套用过来。连接串和密码没有写入文档。
 
 ## 容量与性能合同
 
@@ -53,6 +53,19 @@
 
 ## 接口、资产与交接
 
-见 [出站清单](egress-inventory.md)、[归属登记](ownership-register.md)、[第三方声明](third-party-inventory.md)、[模块/写入边界](module-contracts.md) 与 [测试回执](validation.md)。
+见 [出站清单](egress-inventory.md)、[归属登记](ownership-register.md)、[第三方声明](third-party-inventory.md)、[模块边界入口](module-boundaries.md)、[协议入口](protocol-v1.md)、[模块/写入边界](module-contracts.md) 与 [测试回执](validation.md)。
 
-T00 保持 In Progress：离线基线可交接，生产 constraints 环境、GitHub 实际工作流启用状态、应用标识外部冲突、签名责任、隔离 PostgreSQL 集成与复核人签署尚未完成。T01/T02 可按已明确的地址和来源边界准备增量改动；没有将任何下游任务标为完成。
+T00 保持 In Progress。2026-10-24 已在现有 WSL Ubuntu 上安装 production lock，并完成后端导入、前端类型检查/双构建。Launcher 的仓库 lock 已补上 `../agent-connector` 目标，并在 G 盘新目录用该 lock 完成 `npm ci`、类型检查和 electron-vite 构建。隔离测试栈从当前工作区直接构建：宿主 `127.0.0.1:13000`、`127.0.0.1:18000/health` 和 `/ready` 可访问，应用 schema 仍未迁移。详见 [测试回执](validation.md)。
+
+以下事项不能写成已通过：
+
+| 事项 | 2026-10-24 实际结果 | 仍要谁决定 |
+| --- | --- | --- |
+| 隔离库 schema | 引擎 29.2.1 上 `aghub-t00-test` 已运行。库已存在，public 基表 0 张，后端 `/ready` 返回 database ok。本轮决定不执行 Alembic 或 schema 初始化 | 空库是本地开发限制，不是继续 T01 的前提。以后若只对 `aghub_t00_test` 执行现有迁移到 head `084`，仍按 `workspace/AGENTS.md` 另作说明。不新建迁移，不碰生产或 preview |
+| 生产依赖安装 | WSL Ubuntu + uv 0.11.7 的 CPython 3.12.13 已按 lock 安装；75 条 lock 版本一致，uvloop 0.23.0 可导入。发行版自带 Python 是 3.10.12 | 安装位置是本机现有 WSL Ubuntu，补丁版本是 3.12.13 |
+| GitHub 启用状态 | 未认证 API：3 个 workflow 为 active，12 个 disabled_manually。上游同步 schedule 仍在跑且近期失败。permissions 401，job logs 403 | 管理员才能核凭据，并在 T11 决定是否停用上游同步。本轮没有停用 |
+| 应用标识 | tracked 标识仍是 `com.openagents.launcher`。自用开发合同是 `com.zaiyemeiyou.aghub`；本地源码没有同名第二条声明 | 实际 Launcher/Connector 身份改造归 T02。公共商店和证书注册未做，不宣称已获得外部注册资格 |
+| 签名与地址 | 签名责任归口用户 zaiyemeiyou404。约定材料目录为仓库外 `G:\CodexData\aghub\signing`。当前没有生成密钥，也没有证书。本地合同是 apiBase/authBase `http://127.0.0.1:18000`、webBase `http://127.0.0.1:13000` | Windows 先允许未签名的受控本地开发产物。Android 自有签名和同签名升级在 T07/T09 验证。正式远端 HTTPS 由用户显式配置，缺失为 `configuration_required`；不猜测域名 |
+| 复核签署 | 本回执的技术复核由 Codex/Cursor 完成，记录为 AI 复核 | 另一位开发者的合并/发行人审仍待完成。这不是人类 B/C 签名。T00 保持 In Progress |
+
+地址和来源边界已写在出站清单中。按 v1.2，T01–T08 可以沿已确认的本地边界推进；这不表示 T00 已通过人审或整产品验收，也没有把下游任务标为完成。T00 保持 In Progress。

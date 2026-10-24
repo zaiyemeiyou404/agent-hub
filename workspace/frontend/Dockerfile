@@ -20,9 +20,12 @@ RUN npm ci
 # Copy application code
 COPY . .
 
-# Build
-RUN npm run build
+# Build the standalone server. `next start` does not serve this output.
+RUN npm run build \
+ && cp -r public .next/standalone/public \
+ && cp -r .next/static .next/standalone/.next/static
 
-# Run
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["node", ".next/standalone/server.js"]

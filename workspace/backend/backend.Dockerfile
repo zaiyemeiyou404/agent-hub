@@ -19,7 +19,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-RUN chmod +x entrypoint.sh
+# A Windows checkout can supply CRLF. The shebang is only executable as LF.
+RUN sed -i 's/\r$//' entrypoint.sh && chmod +x entrypoint.sh
 
 ENV PYTHONPATH=/app
 

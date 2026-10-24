@@ -72,7 +72,9 @@ services:
     pids_limit: 256
 networks:
   test_internal:
-    internal: true
+    # Docker leaves host port bindings empty on an internal network.
+    # Published ports in this file stay bound to 127.0.0.1.
+    driver: bridge
 volumes:
   test_pgdata:
   test_files:
