@@ -286,3 +286,4 @@ tests/end_to_end/agents.config.json
 
 # Synthetic accounts, snapshots and logs from the isolated baseline runner.
 .tmp/aghub-baseline/
+.superpowers/
