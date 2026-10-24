@@ -993,8 +993,7 @@ function createTUI() {
     for (const net of networks) {
       const name = net.name || net.slug || net.id;
       const slug = net.slug || net.id;
-      const isLocal = (net.endpoint || '').includes('localhost') || (net.endpoint || '').includes('127.0.0.1');
-      const url = isLocal ? `${net.endpoint}/${slug}` : `https://workspace.openagents.org/${slug}`;
+      const url = require('./service-endpoints').workspaceLabelFromEndpoint(net.endpoint, slug);
       items.push(`  ${name.padEnd(30)} {gray-fg}${url}{/gray-fg}`);
       rowActions.push(`existing:${slug}`);
     }
@@ -1232,12 +1231,9 @@ function createTUI() {
       return;
     }
     const slug = net.slug || net.id;
-    const isLocal = (net.endpoint || '').includes('localhost') || (net.endpoint || '').includes('127.0.0.1');
-    let url;
-    if (isLocal) {
-      url = `${net.endpoint}/${slug}`;
-    } else {
-      url = `https://workspace.openagents.org/${slug}`;
+    let url = require('./service-endpoints').workspaceLabelFromEndpoint(net.endpoint, slug);
+    if (url !== 'configuration_required' && !url.startsWith('http')) {
+      url = `https://${url}`;
     }
     if (net.token) url += `?token=${net.token}`;
 

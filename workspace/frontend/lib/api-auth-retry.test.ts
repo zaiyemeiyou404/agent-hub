@@ -1,4 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
+// The API module captures its origin on load; retries require an explicit API.
+vi.hoisted(() => vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://api.example.test'));
 import { ApiError, workspaceApi } from './api';
 
 /**
@@ -10,6 +12,7 @@ import { ApiError, workspaceApi } from './api';
 const ok = (data: unknown) => new Response(JSON.stringify({ code: 0, data }), { status: 200 });
 const guard401 = () =>
   new Response(JSON.stringify({ code: 401, message: 'rejected by guard', data: null }), { status: 401 });
+afterAll(() => vi.unstubAllEnvs());
 
 function setup(bearer = 'stale-token') {
   workspaceApi.configure('ws-1', 'ws-token', bearer);

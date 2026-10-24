@@ -221,6 +221,16 @@ class _Resp:
 
 
 class TestExchange:
+    @pytest.fixture(autouse=True)
+    def firebase_key(self, monkeypatch):
+        monkeypatch.setattr(firebase_auth.config, "FIREBASE_WEB_API_KEY", "test-web-key")
+
+    def test_missing_key_does_not_call(self, monkeypatch):
+        monkeypatch.setattr(firebase_auth.config, "FIREBASE_WEB_API_KEY", "")
+        with patch("httpx.post") as post:
+            assert firebase_auth.exchange_custom_token("ct") is None
+        post.assert_not_called()
+
     def test_exchange_verifies_returned_id_token(self, monkeypatch):
         with patch("httpx.post", return_value=_Resp(200, {"idToken": "id-1"})) as post, \
              patch("app.firebase_auth.verify_firebase_claims", return_value=CLAIMS) as vf:

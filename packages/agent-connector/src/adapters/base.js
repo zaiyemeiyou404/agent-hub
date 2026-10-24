@@ -39,7 +39,7 @@ const {
 } = require('./health-status');
 const { FailureStreak, isTransientNetworkError, formatDuration } = require('./failure-streak');
 
-const DEFAULT_ENDPOINT = 'https://workspace-endpoint.openagents.org';
+const { acceptExplicitServiceUrl } = require('../service-endpoints');
 
 // ── Presence detail (v1.1 M3) ──
 // A busy↔idle flip is sent as an immediate heartbeat (debounced) so the
@@ -183,7 +183,7 @@ class BaseAdapter {
     this.channelName = channelName;
     this.token = token;
     this.agentName = agentName;
-    this.endpoint = endpoint || DEFAULT_ENDPOINT;
+    this.endpoint = endpoint ? acceptExplicitServiceUrl(endpoint, 'api') : '';
     this.agentEnv = agentEnv || process.env;
     this.agentType = agentType;
     this.workingDir = workingDir || undefined;
@@ -203,7 +203,7 @@ class BaseAdapter {
     // clean stop is never mislabeled as an error.
     this._stopRequested = false;
     // Acts for this one agent: X-Agent-Name on every request (permission model v1.1).
-    this.client = new WorkspaceClient(this.endpoint, { agentName: this.agentName });
+    this.client = new WorkspaceClient(this.endpoint || undefined, { agentName: this.agentName });
     this._lastEventId = null;
     this._cursorFile = this._cursorFilePath();
     this._lastPersistedCursor = null;

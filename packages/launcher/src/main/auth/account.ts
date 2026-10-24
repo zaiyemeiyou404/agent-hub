@@ -1,11 +1,7 @@
 import { accountApiBase, apiBase, webBase } from "./endpoints"
+import { tokenForService } from "./service-endpoints"
 import { authFetch } from "./http"
 import { registrationPasswordError } from "../../shared/account-registration"
-import {
-  refreshIdToken,
-  signInWithCustomToken,
-  signInWithPassword as firebaseSignInWithPassword,
-} from "./firebase-rest"
 import { startHandoffServer, type Handoff } from "./handoff-server"
 import {
   clearSession,
@@ -68,9 +64,6 @@ export interface CaptchaConfig {
 const CAPTCHA_DISABLED: CaptchaConfig = { enabled: false, appId: null, scriptUrl: "", surfaces: {} }
 const CAPTCHA_CONFIG_TTL_MS = 5 * 60 * 1000
 
-/** Google's auth hosts are unreachable in China; that failure must read plainly. */
-const FIREBASE_UNREACHABLE = "SIGN_IN_UNREACHABLE"
-
 /** Codes the sign-in form turns into wording; see renderer/lib/account-errors. */
 const BAD_CREDENTIALS = "SIGN_IN_BAD_CREDENTIALS"
 const TOO_MANY_ATTEMPTS = "SIGN_IN_TOO_MANY_ATTEMPTS"
@@ -90,9 +83,6 @@ const CAPTCHA_REQUIRED = "SIGN_IN_CAPTCHA_REQUIRED"
  */
 const NO_ACCOUNT_SERVICE = "SIGN_IN_NO_ACCOUNT_SERVICE"
 
-/** Firebase's own names for "that is not a valid login". */
-const REJECTION_PATTERN =
-  /INVALID_LOGIN_CREDENTIALS|INVALID_PASSWORD|EMAIL_NOT_FOUND|USER_DISABLED|MISSING_PASSWORD/
 
 /**
  * The browser round trip needs a page on the workspace site to come back
@@ -120,8 +110,23 @@ export class AccountManager {
   private _ensureLoaded(): void {
     if (this._loaded) return
     this._loaded = true
-    this._session = loadSession()
+    const session = loadSession()
+    if (session && !session.boundApiBase) {
+      // A credential with no recorded service is not assigned to whatever is configured now.
+      clearSession()
+      this._session = null
+    } else {
+      this._session = session
+    }
     this._scheduleSessionCheck()
+  }
+
+  private _serviceStill(api: string): boolean {
+    try {
+      return apiBase(this._deps.endpoint()) === api
+    } catch {
+      return false
+    }
   }
 
   // An embedded workspace can stay open for days without another main-process
@@ -138,6 +143,9 @@ export class AccountManager {
   }
 
   private _set(session: AccountSession | null): void {
+    if (session && !session.boundApiBase) {
+      throw new Error("configuration_required")
+    }
     this._session = session
     this._loaded = true
     if (session) saveSession(session)
@@ -159,7 +167,8 @@ export class AccountManager {
     // is already stale, and leaving its port open would be a second live gate.
     this.cancelSignIn()
 
-    const origin = webBase(this._deps.endpoint())
+    const origin = webBase()
+    const api = apiBase(this._deps.endpoint())
     // Checked before a port is opened and a browser is launched: without the
     // landing page there is no way back into the app, and finding that out
     // after the user has signed in wastes the whole trip.
@@ -182,6 +191,7 @@ export class AccountManager {
     try {
       const result = await handoff.result
       if (result.error) throw new Error(result.error)
+      if (!this._serviceStill(api)) throw new Error("SESSION_SERVICE_CHANGED")
 
       if (result.session?.token && result.session.email) {
         this._set({
@@ -190,9 +200,12 @@ export class AccountManager {
           email: result.session.email,
           displayName: result.session.displayName ?? null,
           expiresAt: result.session.expiresAt,
+          boundApiBase: api,
         })
       } else if (result.customToken) {
-        this._set(await this._redeem(result.customToken))
+        const session = await this._mintWorkspaceSession(result.customToken, api)
+        if (!this._serviceStill(api)) throw new Error("SESSION_SERVICE_CHANGED")
+        this._set(session)
       } else {
         throw new Error("SIGN_IN_EMPTY_HANDOFF")
       }
@@ -211,15 +224,23 @@ export class AccountManager {
    * first so what is planted is freshly renewed.
    */
   embeddedSession(): {
+    apiBase: string
     token: string
     email: string
     displayName: string | null
     expiresAt: number
   } | null {
     this._ensureLoaded()
-    if (!this._session) return null
+    if (!this._session || this._session.kind === "firebase" || !this._session.boundApiBase) return null
+    let current = ""
+    try {
+      current = apiBase(this._deps.endpoint())
+    } catch {
+      return null
+    }
+    if (!tokenForService({ apiBase: this._session.boundApiBase, token: this._session.token }, current)) return null
     const { token, email, displayName, expiresAt } = this._session
-    return { token, email, displayName, expiresAt }
+    return { token, email, displayName, expiresAt, apiBase: current }
   }
 
   private _captchaConfig: { value: CaptchaConfig; at: number } | null = null
@@ -279,13 +300,9 @@ export class AccountManager {
     // live gates would race to be the session.
     this.cancelSignIn()
 
-    let session: AccountSession
-    try {
-      session = await this._passwordSession(email, password, captcha)
-    } catch (err) {
-      if ((err as Error)?.message !== NO_ACCOUNT_SERVICE) throw err
-      session = await this._firebasePasswordSession(email, password)
-    }
+    const api = apiBase(this._deps.endpoint())
+    const session = await this._passwordSession(email, password, captcha, api)
+    if (!this._serviceStill(api)) throw new Error("SESSION_SERVICE_CHANGED")
     this._set(session)
     return toAccountInfo(session)
   }
@@ -304,6 +321,7 @@ export class AccountManager {
     if (passwordError) throw new Error(passwordError)
     this.cancelSignIn()
 
+    const api = apiBase(this._deps.endpoint())
     const res = await authFetch(`${accountApiBase()}/v1/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -333,7 +351,8 @@ export class AccountManager {
     let session: AccountSession
     try {
       if (!json.data?.access_token) throw new Error("Missing account token")
-      session = await this._redeem(await this._handoffToken(json.data.access_token))
+      session = await this._redeem(await this._handoffToken(json.data.access_token), api)
+      if (!this._serviceStill(api)) throw new Error("SESSION_SERVICE_CHANGED")
     } catch {
       throw new Error("SIGN_UP_SESSION_FAILED")
     }
@@ -345,12 +364,13 @@ export class AccountManager {
   private async _passwordSession(
     email: string,
     password: string,
-    captcha?: CaptchaPass,
+    captcha: CaptchaPass | undefined,
+    api: string,
   ): Promise<AccountSession> {
     const handoff = await this._handoffToken(
       await this._accountToken(email, password, captcha),
     )
-    return this._redeem(handoff)
+    return this._redeem(handoff, api)
   }
 
   /** POST /v1/auth/login — the call the website's own sign-in form makes. */
@@ -414,26 +434,6 @@ export class AccountManager {
     return json.data.custom_token
   }
 
-  /** Firebase, spoken directly — only where the account service is absent. */
-  private async _firebasePasswordSession(
-    email: string,
-    password: string,
-  ): Promise<AccountSession> {
-    try {
-      const tokens = await firebaseSignInWithPassword(email, password)
-      return {
-        kind: "firebase",
-        token: tokens.idToken,
-        refreshToken: tokens.refreshToken,
-        email: tokens.email || email,
-        displayName: tokens.displayName,
-        expiresAt: tokens.expiresAt,
-      }
-    } catch (err) {
-      throw new Error(translateFirebaseError((err as Error).message))
-    }
-  }
-
   /** Give the loopback port back without waiting for the browser. */
   cancelSignIn(): void {
     this._pending?.close()
@@ -452,55 +452,26 @@ export class AccountManager {
    * the browser round trip forwards one unspent when the callback page could
    * not spend it (an older front end, or a backend with no session secret).
    */
-  private async _redeem(customToken: string): Promise<AccountSession> {
-    try {
-      return await this._mintWorkspaceSession(customToken)
-    } catch (err) {
-      // The session endpoint is the one that works everywhere; Firebase is the
-      // consolation prize, and where it is blocked there is nothing left to try.
-      console.error(
-        "workspace session unavailable, falling back to Firebase:",
-        (err as Error).message,
-      )
-    }
-    try {
-      const tokens = await signInWithCustomToken(customToken)
-      return {
-        kind: "firebase",
-        token: tokens.idToken,
-        refreshToken: tokens.refreshToken,
-        email: tokens.email,
-        displayName: tokens.displayName,
-        expiresAt: tokens.expiresAt,
-      }
-    } catch (err) {
-      const message = (err as Error).message
-      throw new Error(
-        /abort|fetch failed|network/i.test(message)
-          ? FIREBASE_UNREACHABLE
-          : message,
-      )
-    }
+  private async _redeem(customToken: string, api: string): Promise<AccountSession> {
+    return this._mintWorkspaceSession(customToken, api)
   }
 
   private async _mintWorkspaceSession(
     customToken: string,
+    api: string,
   ): Promise<AccountSession> {
-    const res = await authFetch(
-      `${apiBase(this._deps.endpoint())}/v1/auth/session`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ custom_token: customToken }),
-      },
-    )
+    const res = await authFetch(`${api}/v1/auth/session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ custom_token: customToken }),
+    })
     const json = (await res.json().catch(() => null)) as {
       data?: SessionPayload
       message?: string
     } | null
     if (!res.ok || !json?.data?.session_token)
       throw new Error(json?.message || `HTTP ${res.status}`)
-    return sessionFrom(json.data)
+    return { ...sessionFrom(json.data), boundApiBase: api }
   }
 
   /**
@@ -513,8 +484,14 @@ export class AccountManager {
   async bearer(): Promise<string> {
     this._ensureLoaded()
     const session = this._session
-    if (!session) throw new Error("NOT_SIGNED_IN")
-    if (isFresh(session) && (session.kind !== "workspace" || session.expiresAt - Date.now() / 1000 > 86400)) return session.token
+    if (!session?.boundApiBase) throw new Error("NOT_SIGNED_IN")
+    if (session.kind === "firebase") {
+      this._set(null)
+      throw new Error("NOT_SIGNED_IN")
+    }
+    const api = apiBase(this._deps.endpoint())
+    if (session.boundApiBase !== api) throw new Error("SESSION_SERVICE_CHANGED")
+    if (isFresh(session) && session.expiresAt - Date.now() / 1000 > 86400) return session.token
     if (this._renewal?.session === session) return this._renewal.promise
     const promise = this._renewSession(session)
     this._renewal = { session, promise }
@@ -523,40 +500,32 @@ export class AccountManager {
   }
 
   private async _renewSession(session: AccountSession): Promise<string> {
-    if (session.kind === "workspace" && isFresh(session)) {
-      const res = await authFetch(`${apiBase(this._deps.endpoint())}/v1/auth/session/renew`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.token}` },
-        signal: AbortSignal.timeout(15_000),
-      })
-      if (this._session !== session) throw new Error("SESSION_CHANGED")
-      if (res.status === 401) {
-        this._set(null)
-        throw new Error("SESSION_EXPIRED")
-      }
-      const json = (await res.json().catch(() => null)) as { data?: SessionPayload } | null
-      if (this._session !== session) throw new Error("SESSION_CHANGED")
-      if (!res.ok || !json?.data?.session_token) throw new Error("SESSION_RENEWAL_UNAVAILABLE")
-      const renewed = sessionFrom(json.data)
-      if (renewed.email !== session.email || !Number.isFinite(renewed.expiresAt) || !isFresh(renewed))
-        throw new Error("SESSION_RENEWAL_INVALID")
-      this._set(renewed)
-      return renewed.token
-    }
-
-    if (session.kind !== "firebase" || !session.refreshToken) {
+    const bound = session.boundApiBase
+    if (!bound || session.kind !== "workspace" || !isFresh(session)) {
       this._set(null)
       throw new Error("SESSION_EXPIRED")
     }
-    try {
-      const renewed = await refreshIdToken(session.refreshToken)
-      if (this._session !== session) throw new Error("SESSION_CHANGED")
-      this._set({ ...session, ...renewed, token: renewed.idToken })
-      return renewed.idToken
-    } catch {
-      if (this._session === session) this._set(null)
+    if (!this._serviceStill(bound)) throw new Error("SESSION_SERVICE_CHANGED")
+    const res = await authFetch(`${bound}/v1/auth/session/renew`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.token}` },
+      signal: AbortSignal.timeout(15_000),
+    })
+    if (this._session !== session) throw new Error("SESSION_CHANGED")
+    if (!this._serviceStill(bound)) throw new Error("SESSION_SERVICE_CHANGED")
+    if (res.status === 401) {
+      this._set(null)
       throw new Error("SESSION_EXPIRED")
     }
+    const json = (await res.json().catch(() => null)) as { data?: SessionPayload } | null
+    if (this._session !== session) throw new Error("SESSION_CHANGED")
+    if (!this._serviceStill(bound)) throw new Error("SESSION_SERVICE_CHANGED")
+    if (!res.ok || !json?.data?.session_token) throw new Error("SESSION_RENEWAL_UNAVAILABLE")
+    const renewed = { ...sessionFrom(json.data), boundApiBase: bound }
+    if (renewed.email !== session.email || !Number.isFinite(renewed.expiresAt) || !isFresh(renewed))
+      throw new Error("SESSION_RENEWAL_INVALID")
+    this._set(renewed)
+    return renewed.token
   }
 
   /**
@@ -592,7 +561,9 @@ export class AccountManager {
 
   private async _request<T>(path: string, init: RequestInit): Promise<T> {
     const token = await this.bearer()
-    const res = await authFetch(`${apiBase(this._deps.endpoint())}${path}`, {
+    const base = apiBase(this._deps.endpoint())
+    if (this._session?.boundApiBase !== base) throw new Error("SESSION_SERVICE_CHANGED")
+    const res = await authFetch(`${base}${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
@@ -646,10 +617,3 @@ async function landingPageExists(webOrigin: string): Promise<boolean> {
   }
 }
 
-function translateFirebaseError(message: string): string {
-  if (REJECTION_PATTERN.test(message)) return BAD_CREDENTIALS
-  if (/TOO_MANY_ATTEMPTS/i.test(message)) return TOO_MANY_ATTEMPTS
-  if (/abort|fetch failed|network|ERR_/i.test(message))
-    return FIREBASE_UNREACHABLE
-  return message
-}

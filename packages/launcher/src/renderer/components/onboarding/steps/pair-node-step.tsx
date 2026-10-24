@@ -186,7 +186,8 @@ function StartGuide({ onOpen }: { onOpen: () => void }): React.JSX.Element {
         className="mt-4 w-full"
         onClick={() => {
           onOpen()
-          void window.api.openExternal(workspaceWebBaseUrl())
+          const web = workspaceWebBaseUrl()
+          if (web) void window.api.openExternal(web)
         }}
       >
         <ExternalLink className="size-4" />

@@ -4,7 +4,9 @@
 // access into memberships and auto-provisions an empty workspace for brand-new
 // users, so a freshly signed-in user always has at least one entry.
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://workspace-endpoint.openagents.org';
+import { apiBaseFromEnv, authBaseFromEnv } from './service-endpoints';
+
+const API_URL = apiBaseFromEnv();
 
 export interface AccountWorkspace {
   workspaceId: string;
@@ -161,7 +163,8 @@ export function getCampaignModels(idToken: string): Promise<{ models: string[] }
  * site's backend keys the account on. Returns whether a mail was queued.
  */
 export async function resendVerificationEmail(idToken: string): Promise<{ sent: boolean; alreadyVerified: boolean }> {
-  const base = process.env.NEXT_PUBLIC_OPENAGENTS_API_URL || 'https://endpoint.openagents.org';
+  const base = authBaseFromEnv();
+  if (!base) throw new Error('configuration_required');
   const res = await fetch(`${base}/v1/auth/resend-verification`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${idToken}` },

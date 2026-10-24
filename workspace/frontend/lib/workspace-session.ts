@@ -9,10 +9,14 @@
 // The rest of the app treats that JWT exactly like a Firebase ID token: it is
 // the `Authorization: Bearer` value, and the backend accepts it as an identity.
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://workspace-endpoint.openagents.org';
+import { apiBaseFromEnv, ConfigurationRequired, tokenForService } from './service-endpoints';
+
+const API_URL = apiBaseFromEnv();
 const STORAGE_KEY = 'oa_workspace_session';
 
 export interface WorkspaceSession {
+  /** The API origin that minted this credential. Never inferred on restore. */
+  apiBase: string;
   token: string;
   email: string;
   displayName: string | null;
@@ -22,6 +26,7 @@ export interface WorkspaceSession {
 
 /** Exchange a login-handoff custom token for a workspace session (server-side). */
 export async function exchangeHandoffToken(customToken: string): Promise<WorkspaceSession> {
+  if (!API_URL) throw new ConfigurationRequired('api');
   const res = await fetch(`${API_URL}/v1/auth/session`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -32,6 +37,7 @@ export async function exchangeHandoffToken(customToken: string): Promise<Workspa
     throw new Error(json?.message || `Sign-in failed (${res.status})`);
   }
   const session: WorkspaceSession = {
+    apiBase: API_URL,
     token: json.data.session_token,
     email: json.data.email,
     displayName: json.data.display_name ?? null,
@@ -42,6 +48,10 @@ export async function exchangeHandoffToken(customToken: string): Promise<Workspa
 }
 
 export function saveWorkspaceSession(session: WorkspaceSession): void {
+  if (!isCurrentWorkspaceSession(session)) {
+    clearWorkspaceSession();
+    return;
+  }
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
   } catch {
@@ -49,13 +59,24 @@ export function saveWorkspaceSession(session: WorkspaceSession): void {
   }
 }
 
+/** Used for both persisted credentials and live updates from the desktop host. */
+export function isCurrentWorkspaceSession(value: unknown): value is WorkspaceSession {
+  if (!value || typeof value !== 'object') return false;
+  const session = value as Partial<WorkspaceSession>;
+  return Boolean(API_URL && typeof session.email === 'string' && session.email
+    && typeof session.token === 'string' && session.token
+    && typeof session.apiBase === 'string'
+    && typeof session.expiresAt === 'number' && Number.isFinite(session.expiresAt)
+    && tokenForService(session, API_URL));
+}
+
 /** The stored session, or null if absent, malformed, or within a minute of expiry. */
 export function loadWorkspaceSession(): WorkspaceSession | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const s = JSON.parse(raw) as WorkspaceSession;
-    if (!s?.token || !s?.email || typeof s.expiresAt !== 'number') {
+    const s: unknown = JSON.parse(raw);
+    if (!isCurrentWorkspaceSession(s)) {
       clearWorkspaceSession();
       return null;
     }

@@ -60,7 +60,7 @@ function makeHermes({ script = [], session = null, transcript = [], version = CU
     channelName: 'general',
     token: 'tok-secret',
     agentName: 'hermes-test',
-    endpoint: 'http://127.0.0.1:0',
+    endpoint: 'https://api.example.com',
     agentEnv,
   });
   a._hermesHome = hermesHome;

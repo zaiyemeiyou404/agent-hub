@@ -1,75 +1,40 @@
 /**
- * Where the account half of the app talks to.
- *
- * Three hosts. Two are derived from the single endpoint the user can configure
- * (Settings → workspace endpoint), so a self-hosted deployment moves both at
- * once; the third is where accounts live:
- *
- *   api      workspace-endpoint.openagents.org  REST (sessions, memberships)
- *   web      workspace.openagents.org           the workspace pages
- *   login    openagents.org                     the sign-in page, which the
- *                                               launcher now opens INSIDE the
- *                                               app rather than in a browser
- *   account  endpoint.openagents.org            where accounts actually live:
- *                                               email+password, and the handoff
- *                                               token that opens a workspace
- *
- * The renderer has the same web/api mapping in `lib/workspace-urls.ts`; main
- * cannot import it (different tsconfig root) so the rule is spelled out again
- * here rather than reached for across the boundary.
+ * apiBase, webBase and authBase are three explicit origins.
+ * A missing or illegal value is configuration_required. Nothing here invents
+ * an official host. Old env names still map onto those fields.
  */
 
-export const DEFAULT_API_BASE = "https://workspace-endpoint.openagents.org"
+import { resolveServiceUrl, validateServiceConfiguration, type ServiceRole, type ServiceConfiguration } from "./service-endpoints"
 
-/**
- * Where accounts are authenticated. Not derived from the workspace endpoint: a
- * self-hosted workspace still authenticates people against the hosted account
- * system. Overridable for a staging site.
- */
-export function loginBase(): string {
-  return (
-    process.env.OPENAGENTS_LOGIN_BASE?.replace(/\/$/, "") ||
-    "https://openagents.org"
-  )
+let saved: ServiceConfiguration | undefined
+export function setServiceConfiguration(value?: unknown): void {
+  saved = value === undefined ? undefined : validateServiceConfiguration(value)
+}
+export function configuredDevelopmentMode(): boolean {
+  return saved ? saved.devLoopback : process.env.AGHUB_DEV_LOOPBACK === "1"
+}
+function resolve(value: string | undefined, role: ServiceRole): string {
+  return resolveServiceUrl(value, role, { AGHUB_DEV_LOOPBACK: configuredDevelopmentMode() ? "1" : "" })
 }
 
-/**
- * The account service behind openagents.org — a different deployment from the
- * workspace backend, and the one that answers for email and password.
- *
- * openagents.org is a Next.js site with no auth API of its own (`/api/geo` is
- * the only route it serves); its sign-in page posts to this host. Accounts made
- * through that form live HERE, not in Firebase — which is why speaking to
- * Identity Toolkit directly rejects a password the website accepts. Firebase
- * still holds the Google/GitHub/Apple identities.
- *
- * Overridable for a staging deployment, alongside OPENAGENTS_LOGIN_BASE.
- */
-export function accountApiBase(): string {
-  return (
-    process.env.OPENAGENTS_ACCOUNT_API_BASE?.replace(/\/$/, "") ||
-    "https://endpoint.openagents.org"
-  )
+function fromEnv(explicit: string | undefined, envName: string, role: ServiceRole): string {
+  return resolve(explicit || saved?.[`${role}Base`] || process.env[envName], role)
 }
 
-/** REST base for the account API — what `workspaceEndpoint` normalizes to. */
+/** The workspace API origin. This is never reused as the web or auth origin. */
 export function apiBase(configured?: string): string {
-  return (configured || DEFAULT_API_BASE).replace(/\/$/, "")
+  return resolve(configured || saved?.apiBase, "api")
 }
 
-/**
- * The web origin that serves the workspace pages. `workspace-endpoint.x` and
- * `workspace.x` are the same deployment; anything else is assumed to serve
- * both from one origin.
- *
- * The override exists for the case the derivation cannot cover: a front end
- * served from somewhere unrelated to its API — a preview deployment, or a
- * local dev server being pointed at the hosted backend.
- */
-export function webBase(configured?: string): string {
-  const override = process.env.OPENAGENTS_WORKSPACE_WEB_BASE
-  if (override) return override.replace(/\/$/, "")
-  return apiBase(configured)
-    .replace("workspace-endpoint.", "workspace.")
-    .replace(/\/v1$/, "")
+/** The web origin. An explicit argument is a web URL, not the API endpoint. */
+export function webBase(explicitWeb?: string): string {
+  return fromEnv(explicitWeb, "OPENAGENTS_WORKSPACE_WEB_BASE", "web")
+}
+
+export function accountApiBase(explicitAuth?: string): string {
+  return fromEnv(explicitAuth, "OPENAGENTS_ACCOUNT_API_BASE", "auth")
+}
+
+export function loginBase(explicitAuth?: string): string {
+  return resolve(explicitAuth || saved?.authBase || process.env.OPENAGENTS_ACCOUNT_API_BASE || process.env.OPENAGENTS_LOGIN_BASE, "auth")
 }

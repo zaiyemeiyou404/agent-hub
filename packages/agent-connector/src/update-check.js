@@ -94,6 +94,7 @@ async function fetchLatest(timeoutMs = 2500) {
  * Return { current, latest, isNewer } or null if the check failed / offline.
  */
 async function checkForUpdate() {
+  if (process.env.AGHUB_UPDATE_ENABLED !== '1') return null;
   const current = currentVersion();
   let latest = loadCache();
   if (!latest) {

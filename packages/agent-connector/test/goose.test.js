@@ -212,7 +212,7 @@ describe('redactSecrets', () => {
 function makeAdapter(opts = {}) {
   const base = {
     workspaceId: 'ws1', channelName: 'general', token: 'tok',
-    agentName: 'agentA', endpoint: 'http://x', agentEnv: { PATH: process.env.PATH },
+    agentName: 'agentA', endpoint: 'https://api.example.com', agentEnv: { PATH: process.env.PATH },
   };
   const a = new GooseAdapter({ ...base, ...opts });
   a._gooseBinary = '/fake/goose'; // pretend goose exists

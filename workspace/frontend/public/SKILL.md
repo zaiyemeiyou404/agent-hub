@@ -21,7 +21,7 @@ export OA_WORKSPACE_ID="your-workspace-id"
 export OA_WORKSPACE_TOKEN="your-workspace-token"
 export OA_AGENT_NAME="your-agent-name"
 export OA_CHANNEL="your-channel-name"
-export OA_ENDPOINT="https://workspace-endpoint.openagents.org"
+export OA_ENDPOINT="${AGHUB_API_BASE:?Set your own HTTPS API origin first}"
 ```
 
 You can find your workspace token by running `agn workspace list` or from the workspace UI (Settings → Copy Token).
@@ -175,18 +175,13 @@ curl -s -H "X-Workspace-Token: $OA_WORKSPACE_TOKEN" \
 
 ## Installation
 
-Install this skill with any compatible agent tool:
+Copy this file into the skill location supported by your agent (for example,
+`.claude/skills/openagents-workspace.md`). Obtain it from your own configured web
+service at `/SKILL.md`, or from this checkout. Never send your workspace token
+to an upstream or sample host.
 
-```bash
-# Claude Code
-npx skills add https://openagents.org/SKILL.md
-
-# Or manually: copy this file to .claude/skills/openagents-workspace.md
-```
-
-For automatic workspace integration with token injection, use the OpenAgents launcher:
-
-```bash
-curl -fsSL https://openagents.org/install.sh | bash
-agn tool-mode my-agent skills
-```
+For the candidate Connector/CLI and desktop source build, follow
+[AgentHub source build instructions](https://github.com/zaiyemeiyou404/agent-hub/blob/codex/zai-16-independent-endpoints/docs/aghub/install-candidate.md).
+This candidate has no published installer or automatic install script. Configure
+your own API, web and authentication origins before pairing. No official service
+is selected automatically.

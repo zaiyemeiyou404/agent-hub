@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# OpenAgents Workspace Installer
-# Redirects to the unified installer at openagents.org
-# Usage: curl -fsSL https://workspace.openagents.org/install.sh | bash
-
-exec bash <(curl -fsSL https://openagents.org/install.sh)
+# Local package install entry. It does not download an official installer.
+echo "No candidate installer is published. Build from source: https://github.com/zaiyemeiyou404/agent-hub/blob/codex/zai-16-independent-endpoints/docs/aghub/install-candidate.md" >&2
+exit 1

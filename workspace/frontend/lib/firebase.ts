@@ -10,24 +10,37 @@ import {
   type User,
 } from 'firebase/auth';
 
-const firebaseConfig = {
-  apiKey: 'AIzaSyCXgN-7HfgAQiN0pRKqGi8jMbGGo9e9X34',
-  authDomain: 'openagentsweb.firebaseapp.com',
-  projectId: 'openagentsweb',
-  storageBucket: 'openagentsweb.firebasestorage.app',
-  messagingSenderId: '796726902048',
-  appId: '1:796726902048:web:5b9079c5b2c3061edc2b45',
-  measurementId: 'G-1QYBRXC8RK',
-};
+import { ConfigurationRequired } from './service-endpoints';
 
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
+function configuredFirebase() {
+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+  const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID;
+  if (!apiKey || !authDomain || !projectId || !appId) return null;
+  if (authDomain.includes('openagents') || projectId === 'openagentsweb') return null;
+  return {
+    apiKey,
+    authDomain,
+    projectId,
+    appId,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  };
+}
+
+function requireAuth() {
+  const firebaseConfig = configuredFirebase();
+  if (!firebaseConfig) throw new ConfigurationRequired('firebase');
+  const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  return getAuth(app);
+}
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export async function signInWithGoogle() {
-  const result = await signInWithPopup(auth, googleProvider);
+  const result = await signInWithPopup(requireAuth(), googleProvider);
   return result.user;
 }
 
@@ -38,16 +51,24 @@ export async function signInWithGoogle() {
  * openagents.org session because Firebase persists auth per-origin.
  */
 export async function signInWithCustomTokenValue(customToken: string) {
-  const result = await signInWithCustomToken(auth, customToken);
+  const result = await signInWithCustomToken(requireAuth(), customToken);
   return result.user;
 }
 
 export async function signOutUser() {
-  await signOut(auth);
+  await signOut(requireAuth());
 }
 
 export function onAuthChange(callback: (user: User | null) => void) {
-  return onAuthStateChanged(auth, callback);
+  try {
+    return onAuthStateChanged(requireAuth(), callback);
+  } catch (err) {
+    if (err instanceof ConfigurationRequired) {
+      callback(null);
+      return () => {};
+    }
+    throw err;
+  }
 }
 
 /**
@@ -58,19 +79,27 @@ export function onAuthChange(callback: (user: User | null) => void) {
  * falling back to the workspace token.
  */
 export function onIdTokenChange(callback: (user: User | null) => void) {
-  return onIdTokenChanged(auth, callback);
+  try {
+    return onIdTokenChanged(requireAuth(), callback);
+  } catch (err) {
+    if (err instanceof ConfigurationRequired) {
+      callback(null);
+      return () => {};
+    }
+    throw err;
+  }
 }
 
 /** The current ID token, refreshed by the SDK if it has expired. `force`
  *  mints a new one regardless (used after the server rejected the old one). */
 export async function getFreshIdToken(force = false): Promise<string | null> {
-  const user = auth.currentUser;
+  const user = (() => { try { return requireAuth().currentUser; } catch { return null; } })();
   if (!user) return null;
   return user.getIdToken(force);
 }
 
 export async function getIdToken(): Promise<string | null> {
-  const user = auth.currentUser;
+  const user = (() => { try { return requireAuth().currentUser; } catch { return null; } })();
   if (!user) return null;
   return user.getIdToken(true);
 }
@@ -81,7 +110,7 @@ export async function getIdToken(): Promise<string | null> {
  * carry it only as an `email` custom claim on the ID token, so fall back to that.
  */
 export async function getResolvedEmail(): Promise<string> {
-  const user = auth.currentUser;
+  const user = (() => { try { return requireAuth().currentUser; } catch { return null; } })();
   if (!user) return '';
   if (user.email) return user.email;
   try {
@@ -92,4 +121,3 @@ export async function getResolvedEmail(): Promise<string> {
   }
 }
 
-export { auth };

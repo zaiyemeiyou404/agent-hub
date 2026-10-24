@@ -4,6 +4,7 @@ import { ThemeProvider, useTheme } from 'next-themes';
 import { Toaster } from '@/components/ui/sonner';
 import { DialogsProvider } from '@/components/ui/dialogs-provider';
 import { OpenAgentsAuthProvider } from '@/lib/openagents-auth-context';
+import { ServiceConfigurationGate } from '@/components/service-configuration-gate';
 import { I18nProvider, isLocale, useI18n, detectBrowserLocale } from '@/lib/i18n';
 
 import Home from '@/app/page';
@@ -256,11 +257,13 @@ export default function App(): React.JSX.Element {
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <I18nProvider initialLocale={initialLocale} hasStoredLocale={!!host}>
         <AppearanceSync />
-        <OpenAgentsAuthProvider>
-          <DialogsProvider>
-            <DesktopRouter routes={ROUTES} notFound={<NotFound />} />
-          </DialogsProvider>
-        </OpenAgentsAuthProvider>
+        <ServiceConfigurationGate>
+          <OpenAgentsAuthProvider>
+            <DialogsProvider>
+              <DesktopRouter routes={ROUTES} notFound={<NotFound />} />
+            </DialogsProvider>
+          </OpenAgentsAuthProvider>
+        </ServiceConfigurationGate>
         <Toaster />
         <HostNotices />
       </I18nProvider>

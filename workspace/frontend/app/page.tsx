@@ -17,6 +17,13 @@ import { listAccountWorkspaces, createAccountWorkspace, getCampaignStatus, type 
 import { capture, group } from '@/lib/analytics';
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard';
 import { useFormatters, useT, type MessageKey } from '@/lib/i18n';
+import { authBaseFromEnv, webBaseFromEnv } from '@/lib/service-endpoints';
+import { SOURCE_REPOSITORY, BUILD_GUIDE, SOURCE_INSTALL_COMMAND } from '@/lib/installation';
+import { CandidateBuildLink } from '@/components/connect/candidate-build-link';
+
+const CONFIGURED_WEB = webBaseFromEnv();
+const INSTALL_SH = SOURCE_INSTALL_COMMAND;
+const DOCS_HREF = BUILD_GUIDE;
 
 /** A catalogue key, translated at render time, or a raw message from an Error. */
 type ErrorMessage = { key: MessageKey } | { text: string };
@@ -74,22 +81,16 @@ function LandingPage() {
           </div>
           <div className="flex items-center gap-3">
             <a
-              href="https://openagents.org/docs/getting-started/overview"
+              href={DOCS_HREF || undefined}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors hidden sm:inline"
             >
               {t('landing.docs')}
             </a>
             <a
-              href="https://github.com/openagents-org/openagents"
+              href={SOURCE_REPOSITORY}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors hidden sm:inline"
             >
               GitHub
-            </a>
-            <a
-              href="https://discord.gg/openagents"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors hidden sm:inline"
-            >
-              Discord
             </a>
             {isOpenAgentsDomain && (
               <Button size="sm" variant="outline" onClick={signIn}>
@@ -110,7 +111,8 @@ function LandingPage() {
             {t('landing.heroBody')}
           </p>
           <div className="max-w-lg mx-auto space-y-3">
-            <CodeBlock code="curl -fsSL https://openagents.org/install.sh | bash" />
+            <CandidateBuildLink className="text-sm underline" />
+            <CodeBlock code={INSTALL_SH} />
             <CodeBlock code={`agn create my-agent --type claude --install\nagn up`} />
           </div>
           <p className="mt-4 text-sm text-muted-foreground">
@@ -159,7 +161,7 @@ function LandingPage() {
               </div>
               <p className="text-sm text-muted-foreground">
                 {t('landing.step3BodyBefore')}{' '}
-                <span className="font-mono text-foreground">openagents.org/workspace</span>{' '}
+                <span className="font-mono text-foreground">{CONFIGURED_WEB ? `${CONFIGURED_WEB.replace(/^https?:\/\//, '')}/workspace` : 'configuration_required'}</span>{' '}
                 {t('landing.step3BodyAfter')}
               </p>
             </div>
@@ -272,22 +274,17 @@ function LandingPage() {
           <p className="text-muted-foreground">
             {t('landing.ctaBody')}
           </p>
-          <CodeBlock code={`curl -fsSL https://openagents.org/install.sh | bash\nagn create my-agent --type claude --install && agn up`} className="max-w-xl mx-auto" />
+          <CodeBlock code={INSTALL_SH} className="max-w-xl mx-auto" />
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-            <a href="https://openagents.org/docs/getting-started/overview">
+            <a href={DOCS_HREF || undefined}>
               <Button>
                 {t('landing.ctaReadDocs')}
                 <ArrowRight className="size-4 ml-1" />
               </Button>
             </a>
-            <a href="https://github.com/openagents-org/openagents">
+            <a href={SOURCE_REPOSITORY}>
               <Button variant="outline">
                 {t('landing.ctaViewGitHub')}
-              </Button>
-            </a>
-            <a href="https://discord.gg/openagents">
-              <Button variant="outline">
-                {t('landing.ctaJoinDiscord')}
               </Button>
             </a>
           </div>
@@ -302,11 +299,9 @@ function LandingPage() {
             <span>OpenAgents</span>
           </div>
           <div className="flex items-center gap-4">
-            <a href="https://openagents.org" className="hover:text-foreground transition-colors">{t('landing.footerWebsite')}</a>
-            <a href="https://openagents.org/docs/getting-started/overview" className="hover:text-foreground transition-colors">{t('landing.docs')}</a>
-            <a href="https://github.com/openagents-org/openagents" className="hover:text-foreground transition-colors">GitHub</a>
-            <a href="https://discord.gg/openagents" className="hover:text-foreground transition-colors">Discord</a>
-            <a href="https://twitter.com/OpenAgentsAI" className="hover:text-foreground transition-colors">Twitter</a>
+            <a href={CONFIGURED_WEB || undefined} className="hover:text-foreground transition-colors">{t('landing.footerWebsite')}</a>
+            <a href={DOCS_HREF || undefined} className="hover:text-foreground transition-colors">{t('landing.docs')}</a>
+            <a href={SOURCE_REPOSITORY} className="hover:text-foreground transition-colors">GitHub</a>
           </div>
         </div>
       </footer>
@@ -799,8 +794,9 @@ function MembershipHome({
     // Also end the central openagents.org session — otherwise the login
     // redirect immediately re-authenticates and bounces back here. On localhost
     // there's no central login, so just fall through to the inline sign-in gate.
-    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && !desktopHost()) {
-      window.location.href = 'https://openagents.org/logout';
+    const auth = authBaseFromEnv();
+    if (auth && typeof window !== 'undefined' && window.location.hostname !== 'localhost' && !desktopHost()) {
+      window.location.href = `${auth}/logout`;
     }
   };
 
@@ -809,7 +805,7 @@ function MembershipHome({
       <header className="sticky top-0 z-10 border-b-2 border-black bg-white/85 backdrop-blur-sm">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <a
-            href="https://openagents.org"
+            href={CONFIGURED_WEB || undefined}
             className="flex items-center gap-2.5 rounded-md transition-transform hover:-translate-y-0.5 focus:outline-none"
             title={t('dashboard.backToHome')}
           >
@@ -951,7 +947,12 @@ function SignInGate({ signIn }: { signIn: () => Promise<void> }) {
     }
     sessionStorage.setItem(LOGIN_BOUNCE_KEY, String(Date.now()));
     const returnTo = encodeURIComponent(window.location.href);
-    window.location.replace(`https://openagents.org/login?returnTo=${returnTo}`);
+    const auth = authBaseFromEnv();
+    if (!auth) {
+      setShowInline(true);
+      return;
+    }
+    window.location.replace(`${auth}/login?returnTo=${returnTo}`);
   }, [isLocal]);
 
   if (!showInline) return <FullscreenSpinner />;

@@ -42,6 +42,7 @@ declare const window: {
 const SESSION_KEY = "oa_workspace_session"
 
 interface EmbeddedSession {
+  apiBase: string
   token: string
   email: string
   displayName: string | null
@@ -52,6 +53,8 @@ interface HostConfig {
   session: EmbeddedSession | null
   apiUrl?: string
   webUrl?: string
+  authUrl?: string
+  devLoopback?: boolean
   theme: "light" | "dark" | "system"
   locale: string
 }
@@ -61,20 +64,22 @@ let config: HostConfig | null = null
 try {
   config = ipcRenderer.sendSync("workspace-view:config") as HostConfig
 
-  // Only when configured: the bundle's own default is the hosted endpoint, and
-  // overriding it with the same value would just be noise.
-  if (config?.apiUrl) contextBridge.exposeInMainWorld("__OA_API_URL__", config.apiUrl)
+  // Expose only explicit service configuration; the page has no Node process
+  // or official defaults to fall back to.
+  contextBridge.exposeInMainWorld("__OA_API_URL__", config?.apiUrl || "")
+  contextBridge.exposeInMainWorld("__OA_AUTH_URL__", config?.authUrl || "")
+  contextBridge.exposeInMainWorld("__OA_DEV_LOOPBACK__", config?.devLoopback ? "1" : "")
 
   // The bundle's own origin is `openagents://workspace`, which nothing outside
   // this app can open. Links the page hands out — the QR code a phone scans, a
   // copied share link — carry this one instead (see lib/share-origin.ts).
-  if (config?.webUrl) contextBridge.exposeInMainWorld("__OA_WEB_URL__", config.webUrl)
+  contextBridge.exposeInMainWorld("__OA_WEB_URL__", config?.webUrl || "")
 
   // Main destroys this view and wipes its storage whenever the account ends,
   // so a view that exists always belongs to a signed-in account.
-  if (config?.session) {
-    window.localStorage.setItem(SESSION_KEY, JSON.stringify(config.session))
-  }
+  const initialSession = config?.session
+  if (isCurrentSession(initialSession)) storeSession(initialSession)
+  else window.localStorage.removeItem(SESSION_KEY)
 
   // next-themes reads this key as it initialises. Writing it here rather than
   // letting the page settle into its own choice is what keeps the window from
@@ -91,12 +96,21 @@ try {
  * app — the router's route restore, a reload — reads the current token.
  */
 ipcRenderer.on("workspace-view:session", (_e, session: EmbeddedSession) => {
+  if (!isCurrentSession(session)) return
+  storeSession(session)
+})
+
+function isCurrentSession(session: EmbeddedSession | null | undefined): session is EmbeddedSession {
+  return Boolean(config?.apiUrl && session?.apiBase === config.apiUrl && session?.token)
+}
+
+function storeSession(session: EmbeddedSession): void {
   try {
     window.localStorage.setItem(SESSION_KEY, JSON.stringify(session))
   } catch {
     /* The page's own copy is still updated through onSession. */
   }
-})
+}
 
 function subscribe<T>(channel: string, callback: (value: T) => void): () => void {
   const handler = (_e: unknown, value: T): void => callback(value)
@@ -111,6 +125,8 @@ function subscribe<T>(channel: string, callback: (value: T) => void): () => void
  * Shared components use it only when present; the web app keeps its own behavior.
  */
 contextBridge.exposeInMainWorld("__oaHost__", {
+  configureServices: (value: { apiBase: string; webBase: string; authBase: string; devLoopback: boolean }) =>
+    ipcRenderer.invoke("workspace-view:configure-services", value),
   openComputer: () => ipcRenderer.send("workspace-view:open-computer"),
   signIn: () => ipcRenderer.send("workspace-view:sign-in"),
   signOut: () => ipcRenderer.send("workspace-view:sign-out"),
@@ -120,7 +136,9 @@ contextBridge.exposeInMainWorld("__oaHost__", {
     ipcRenderer.send("workspace-view:agent-reply", input),
   /** The account's session changed in main (a renewal). Returns an unsubscribe function. */
   onSession: (callback: (session: EmbeddedSession) => void) =>
-    subscribe("workspace-view:session", callback),
+    subscribe("workspace-view:session", (session: EmbeddedSession) => {
+      if (isCurrentSession(session)) callback(session)
+    }),
   /** A launcher notice to show here, where the launcher's own toasts cannot be seen. */
   onNotice: (callback: (notice: { message: string; type: string }) => void) =>
     subscribe("workspace-view:notice", callback),

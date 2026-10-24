@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { capture, identify } from './analytics';
 import { desktopHost } from './desktop-host';
 import { workspaceApi } from './api';
-import { clearWorkspaceSession, loadWorkspaceSession } from './workspace-session';
+import { clearWorkspaceSession, isCurrentWorkspaceSession, loadWorkspaceSession } from './workspace-session';
 
 interface OpenAgentsUser {
   email: string;
@@ -30,7 +30,7 @@ interface OpenAgentsAuthContextValue {
 // a preview or staging deployment on its own domain is still *our* app and
 // must get the login gate, not the third-party landing page.
 const OPENAGENTS_HOSTNAMES = [
-  'workspace.openagents.org', 'workspace-preview.openagents.org', 'localhost', 'workspace',
+  'localhost', '127.0.0.1', 'workspace',
   ...(process.env.NEXT_PUBLIC_FIRST_PARTY_HOSTNAMES || '')
     .split(',').map((h) => h.trim()).filter(Boolean),
 ];
@@ -157,6 +157,7 @@ export function OpenAgentsAuthProvider({ children }: { children: React.ReactNode
   // In the desktop app the launcher owns the session and pushes renewals here;
   // the page never decides on its own that the account has ended.
   useEffect(() => desktopHost()?.onSession?.((session) => {
+    if (!isCurrentWorkspaceSession(session)) return;
     setUser({ email: session.email, displayName: session.displayName || session.email, photoURL: null });
     setIdToken(session.token);
   }), []);

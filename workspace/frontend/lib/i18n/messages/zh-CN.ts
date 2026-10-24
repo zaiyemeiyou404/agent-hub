@@ -2270,7 +2270,7 @@ export const messages: Messages = {
     verifyResend: '重新发送验证邮件',
     verifySent: '已发送——请查看收件箱（含垃圾邮件）。',
     verifyAlready: '邮箱已验证——请刷新页面。',
-    verifyFailed: '此处无法重发。请登录 openagents.org 并使用欢迎邮件中的链接。',
+    verifyFailed: '此处无法重发。请使用欢迎邮件中的链接。',
     pageDescription: '完成新手任务，即可在你的专属 API 密钥上获得免费的模型推理额度。',
     missionsTitle: '任务',
     dailyTitle: '每日奖励',

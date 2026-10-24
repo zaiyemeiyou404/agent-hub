@@ -19,6 +19,8 @@ const fakes = vi.hoisted(() => ({
   nodeStatus: vi.fn(),
   connectNode: vi.fn(),
   pushNotification: vi.fn(),
+  saveServices: vi.fn(),
+  reopenServices: vi.fn(),
 }))
 vi.mock("electron", () => ({
   ipcMain: {
@@ -32,7 +34,7 @@ vi.mock("./account", () => ({
   AccountManager: class {
     constructor(deps: { onChange: (info: unknown) => void }) { fakes.accountDeps = deps }
     getAccount() { return { email: "person@example.test" } }
-    embeddedSession() { return { token: "renewed", email: "person@example.test", displayName: null, expiresAt: 1 } }
+    embeddedSession() { return { apiBase: "https://api.example.test", token: "renewed", email: "person@example.test", displayName: null, expiresAt: 1 } }
     bearer = fakes.bearer
     signOut = fakes.signOut
     createPairingCode = fakes.createPairingCode
@@ -44,6 +46,7 @@ vi.mock("../workspace-host", () => ({
     signOut = fakes.hostSignOut; whenCleared = fakes.whenCleared
     sendSession = fakes.sendSession; sendNotice = fakes.sendNotice
     currentSession = () => null
+    reopenForServiceConfiguration = fakes.reopenServices
   },
 }))
 import { registerAccountIpc } from "./ipc"
@@ -68,10 +71,38 @@ beforeEach(() => {
     setAppearance: fakes.setAppearance, endpoint: () => undefined,
     getWindow: () => ({ webContents: { send: fakes.send } }) as never,
     connectNode: fakes.connectNode, nodeStatus: fakes.nodeStatus,
+    saveServices: fakes.saveServices,
   })
 })
 
+it("validates and persists service settings only for the owned page, then clears the old login", async () => {
+  const save = fakes.handlers.get("workspace-view:configure-services")
+  expect(save).toBeTypeOf("function")
+  const config = { apiBase: "https://api.example.test", webBase: "https://web.example.test", authBase: "https://auth.example.test", devLoopback: false }
+  fakes.isWorkspaceSender.mockReturnValueOnce(false)
+  await expect(save!({ sender: {} }, config)).rejects.toThrow()
+  expect(fakes.saveServices).not.toHaveBeenCalled()
+  await expect(save!({ sender: {} }, { ...config, apiBase: "http://remote.example.test" })).rejects.toThrow()
+  expect(fakes.saveServices).not.toHaveBeenCalled()
+  await save!({ sender: {} }, config)
+  expect(fakes.saveServices).toHaveBeenCalledWith(config)
+  expect(fakes.signOut).toHaveBeenCalledOnce()
+  expect(fakes.reopenServices).toHaveBeenCalledOnce()
+  const event: { returnValue?: unknown } = {}
+  fakes.listeners.get("workspace-view:config")!(event)
+  expect(event.returnValue).toMatchObject({ webUrl: config.webBase, authUrl: config.authBase, devLoopback: false })
+})
+
 const bounds = { x: 0, y: 40, width: 1000, height: 700 }
+
+it("does not end the old session or reopen the page if settings cannot be saved", async () => {
+  fakes.saveServices.mockRejectedValueOnce(new Error("disk full"))
+  await expect(fakes.handlers.get("workspace-view:configure-services")!({ sender: {} }, {
+    apiBase: "https://new.example.test", webBase: "https://web.example.test", authBase: "https://auth.example.test", devLoopback: false,
+  })).rejects.toThrow("disk full")
+  expect(fakes.signOut).not.toHaveBeenCalled()
+  expect(fakes.reopenServices).not.toHaveBeenCalled()
+})
 
 it("shows each hosted agent reply once and rejects other senders", () => {
   const reply = { workspaceId: "team", sessionId: "thread", eventId: "event-1", sender: "Agent", content: "Finished" }
@@ -240,5 +271,43 @@ it("follows theme and language changes only from the owned page", () => {
 it("hands the page the web origin its shared links must carry", () => {
   const event: { returnValue?: { webUrl?: string } } = {}
   fakes.listeners.get("workspace-view:config")!(event)
-  expect(event.returnValue?.webUrl).toBe("https://workspace.openagents.org")
+  expect(event.returnValue?.webUrl).toBe("")
+})
+
+it("gives the page the web origin even when the API endpoint is a different host", () => {
+  process.env.OPENAGENTS_WORKSPACE_WEB_BASE = "https://web.example.com"
+  try {
+    registerAccountIpc({
+      appearance: () => ({ theme: "system", language: "en" }),
+      setAppearance: fakes.setAppearance, endpoint: () => "https://api.example.com",
+      getWindow: () => ({ webContents: { send: fakes.send } }) as never,
+      connectNode: fakes.connectNode, nodeStatus: fakes.nodeStatus,
+    })
+    const event: { returnValue?: { apiUrl?: string; webUrl?: string } } = {}
+    fakes.listeners.get("workspace-view:config")!(event)
+    expect(event.returnValue?.apiUrl).toBe("https://api.example.com")
+    expect(event.returnValue?.webUrl).toBe("https://web.example.com")
+  } finally {
+    delete process.env.OPENAGENTS_WORKSPACE_WEB_BASE
+  }
+})
+
+it("forwards explicit local auth and development configuration to preload", () => {
+  vi.stubEnv("AGHUB_DEV_LOOPBACK", "1")
+  vi.stubEnv("OPENAGENTS_WORKSPACE_WEB_BASE", "http://127.0.0.1:13000")
+  vi.stubEnv("OPENAGENTS_ACCOUNT_API_BASE", "http://127.0.0.1:18000")
+  try {
+    registerAccountIpc({
+      appearance: () => ({ theme: "system", language: "en" }),
+      setAppearance: fakes.setAppearance, endpoint: () => "http://127.0.0.1:18000",
+      getWindow: () => ({ webContents: { send: fakes.send } }) as never,
+      connectNode: fakes.connectNode, nodeStatus: fakes.nodeStatus,
+    })
+    const event: { returnValue?: unknown } = {}
+    fakes.listeners.get("workspace-view:config")!(event)
+    expect(event.returnValue).toMatchObject({
+      apiUrl: "http://127.0.0.1:18000", webUrl: "http://127.0.0.1:13000",
+      authUrl: "http://127.0.0.1:18000", devLoopback: true,
+    })
+  } finally { vi.unstubAllEnvs() }
 })

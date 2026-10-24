@@ -7,8 +7,10 @@ import { MarkdownContent } from '@/components/chat/markdown-content';
 import { Loader2 } from 'lucide-react';
 import type { SharedSnapshotMessage } from '@/lib/types';
 import { useFormatters, useT } from '@/lib/i18n';
+import { apiBaseFromEnv, webBaseFromEnv } from '@/lib/service-endpoints';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://workspace-endpoint.openagents.org';
+const API_URL = apiBaseFromEnv();
+const WEB_HOME = webBaseFromEnv();
 
 const OA_PALETTE = ['#6C5CE7', '#A29BFE', '#74B9FF', '#0984E3', '#00CEC9'];
 
@@ -96,7 +98,7 @@ export default function SharePage({ params }: { params: Promise<{ token: string 
         <h1 className="text-xl font-semibold">{t('shared.title')}</h1>
         <p className="text-muted-foreground text-sm max-w-md text-center">{error}</p>
         <a
-          href="https://openagents.org"
+          href={WEB_HOME || undefined}
           className="text-sm text-primary hover:underline"
         >
           {t('shared.goToOpenAgents')}
@@ -115,7 +117,7 @@ export default function SharePage({ params }: { params: Promise<{ token: string 
             <span className="text-sm font-medium text-muted-foreground">{t('shared.title')}</span>
           </div>
           <a
-            href="https://openagents.org"
+            href={WEB_HOME || undefined}
             className="text-sm text-primary hover:underline"
           >
             OpenAgents
@@ -145,7 +147,7 @@ export default function SharePage({ params }: { params: Promise<{ token: string 
           {t('shared.footerNote')}
         </p>
         <a
-          href="https://openagents.org"
+          href={WEB_HOME || undefined}
           className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
         >
           <Image src="/logo-icon.png" alt="" width={16} height={16} />

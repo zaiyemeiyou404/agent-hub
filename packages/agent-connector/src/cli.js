@@ -571,9 +571,13 @@ function connectKnownWorkspace(connector, name, ref, connectionId) {
 function workspaceWebUrl(slug, endpoint) {
   const ep = String(endpoint || '');
   const isLocal = ep.includes('localhost') || ep.includes('127.0.0.1');
-  return isLocal
-    ? `${ep.replace(/\/+$/, '')}/${slug}`
-    : `https://workspace.openagents.org/${slug}`;
+  if (isLocal) return `${ep.replace(/\/+$/, '')}/${slug}`;
+  try {
+    const { resolveServiceUrl } = require('./service-endpoints');
+    return `${resolveServiceUrl(process.env.OPENAGENTS_WORKSPACE_WEB_BASE, 'web')}/${slug}`;
+  } catch {
+    return 'configuration_required';
+  }
 }
 
 /**
@@ -1245,7 +1249,15 @@ async function main() {
       const workspaceId = flags['workspace-id'] || process.env.OPENAGENTS_WORKSPACE_ID;
       const channelName = flags['channel-name'] || process.env.OPENAGENTS_CHANNEL_NAME || 'general';
       const agentName = flags['agent-name'] || process.env.OPENAGENTS_AGENT_NAME || 'agent';
-      const endpoint = flags.endpoint || process.env.OPENAGENTS_ENDPOINT || 'https://workspace-endpoint.openagents.org';
+      const { acceptExplicitServiceUrl } = require('./service-endpoints');
+      let endpoint;
+      try {
+        endpoint = acceptExplicitServiceUrl(flags.endpoint || process.env.OPENAGENTS_ENDPOINT, 'api');
+      } catch (err) {
+        print(`Error: ${err.code || 'configuration_required'}`);
+        process.exitCode = 1;
+        return;
+      }
       const token = process.env.OA_WORKSPACE_TOKEN || '';
       if (!workspaceId || !token) {
         print('Error: --workspace-id required and OA_WORKSPACE_TOKEN env var must be set');

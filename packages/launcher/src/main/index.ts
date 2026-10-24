@@ -93,6 +93,7 @@ import {
 } from "./control-server"
 import { clearRevocation } from "./node-pairing"
 import { registerAccountIpc } from "./auth/ipc"
+import { validateServiceConfiguration } from "./auth/service-endpoints"
 import type { ThemeMode } from "../shared/appearance-bridge"
 import {
   registerWorkspaceScheme,
@@ -258,6 +259,12 @@ const HAS_RUN_BEFORE = ((): boolean => {
 })()
 
 const store = new Store()
+// Restore only the app-local flag before the Connector/core is constructed.
+// Invalid/absent saved settings remain fail-closed in the workspace gate.
+try {
+  const services = validateServiceConfiguration(store.get("serviceOrigins"))
+  process.env.AGHUB_DEV_LOOPBACK = services.devLoopback ? "1" : ""
+} catch { /* No valid persisted service configuration yet. */ }
 
 // Notification prefs live in settings.json like every other preference, so they
 // survive a restart and travel with export/import. Wired here rather than
@@ -2632,6 +2639,13 @@ function setupIPC(): void {
   // module: signing in gates the workspace half of the app. Earlier handlers
   // read the manager when invoked, after setup has finished.
   accountManager = registerAccountIpc({
+    services: store.get("serviceOrigins"),
+    saveServices: (config) => {
+      store.setChecked({ serviceOrigins: config, workspaceEndpoint: config.apiBase })
+      // App-process configuration only; no OS or user-global environment change.
+      process.env.AGHUB_DEV_LOOPBACK = config.devLoopback ? "1" : ""
+      agentManager?.reloadCore()
+    },
     endpoint: () => normalizeWorkspaceEndpoint(store.get("workspaceEndpoint")),
     getWindow: () => mainWindow,
     connectNode: (code) => requireManager().connectNode(code),

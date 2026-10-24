@@ -112,16 +112,7 @@ export function WorkspaceQuickConnect({
           {/* Workspace creation lives on the web (after signing in) — the
               launcher only joins existing ones. */}
           <p className="mt-4 mb-0 text-xs text-muted-foreground">
-            {t("workspaces.quickConnect.createOnWeb")}{" "}
-            <button
-              type="button"
-              onClick={() =>
-                window.api.openExternal("https://workspace.openagents.org")
-              }
-              className="cursor-pointer border-0 bg-transparent p-0 text-xs text-(--accent) underline underline-offset-2"
-            >
-              workspace.openagents.org
-            </button>
+            {t("workspaces.quickConnect.createOnWeb")}
           </p>
         </DialogBody>
 

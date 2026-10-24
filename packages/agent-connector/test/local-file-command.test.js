@@ -47,7 +47,7 @@ function commandHarness() {
 
 describe('local-file command protocol', () => {
   it('declares protocol capability on the node heartbeat', async () => {
-    const client = new WorkspaceClient('http://127.0.0.1:19999');
+    const client = new WorkspaceClient('https://api.example.com');
     let body = null;
     client._post = async (_path, value) => { body = value; return { data: {} }; };
     await client.nodeHeartbeat('node-1', 'tok', { capabilities: ['local_file_request.v1'] });

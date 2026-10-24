@@ -22,7 +22,7 @@ vi.mock("./session-store", async () => {
   }
 })
 
-const ACCOUNT_API = "https://endpoint.openagents.org"
+const ACCOUNT_API = "https://endpoint.example.com"
 const SESSION = {
   session_token: "session-jwt",
   email: "a@example.com",
@@ -70,11 +70,12 @@ function service(opts: { enabled?: boolean; configStatus?: number } = {}) {
 }
 
 function manager(): AccountManager {
-  return new AccountManager({ endpoint: () => undefined, openExternal: () => {}, onChange: () => {} })
+  return new AccountManager({ endpoint: () => "https://api.example.com", openExternal: () => {}, onChange: () => {} })
 }
 
 beforeEach(() => {
   stored = null
+  vi.stubEnv("OPENAGENTS_ACCOUNT_API_BASE", ACCOUNT_API)
 })
 
 describe("AccountManager captcha", () => {

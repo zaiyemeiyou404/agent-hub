@@ -47,10 +47,16 @@ export default defineConfig(({ mode }) => ({
   // preload sets `globalThis.__OA_API_URL__` before the page's first script.
   define: {
     // A bare identifier, not an expression: esbuild's `define` takes only
-    // entity names and literals. index.html gives it a default, and the
-    // launcher's preload — which runs before any page script — can set it to
-    // a self-hosted endpoint first.
-    'process.env.NEXT_PUBLIC_API_URL': '__OA_API_URL__',
+    // entity names and literals. Preload supplies these before any page script.
+    // Missing globals remain undefined: there is no official service fallback.
+    'process.env.NEXT_PUBLIC_API_URL': 'globalThis.__OA_API_URL__',
+    'process.env.NEXT_PUBLIC_WEB_BASE': 'globalThis.__OA_WEB_URL__',
+    'process.env.NEXT_PUBLIC_AUTH_BASE': 'globalThis.__OA_AUTH_URL__',
+    'process.env.AGHUB_DEV_LOOPBACK': 'globalThis.__OA_DEV_LOOPBACK__',
+    'process.env.NEXT_PUBLIC_AGHUB_DEV_LOOPBACK': 'globalThis.__OA_DEV_LOOPBACK__',
+    // Other optional Next settings are absent in the isolated browser, never
+    // inherited from the developer's Node environment.
+    'process.env': '{}',
     // Analytics is deliberately off in the desktop build; see shims/next-script.
     'process.env.NEXT_PUBLIC_POSTHOG_KEY': 'undefined',
     'process.env.NEXT_PUBLIC_POSTHOG_HOST': 'undefined',

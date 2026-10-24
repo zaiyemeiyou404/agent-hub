@@ -24,7 +24,7 @@ function makeAmp(binResolver) {
     channelName: 'general',
     token: 't',
     agentName: 'amp-test',
-    endpoint: 'http://127.0.0.1:0',
+    endpoint: 'https://api.example.com',
   });
   a._log = () => {}; // keep test output clean
   a._findAmpBinary = binResolver;

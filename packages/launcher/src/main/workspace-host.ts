@@ -3,6 +3,7 @@ import { app, WebContentsView, session as electronSession } from "electron"
 import type { BrowserWindow } from "electron"
 
 import { apiBase, loginBase, webBase } from "./auth/endpoints"
+import { ConfigurationRequiredError } from "./auth/service-endpoints"
 import {
   allowBundleApiAccess,
   bundleExists,
@@ -44,6 +45,7 @@ export interface ViewBounds {
 }
 
 export interface EmbeddedSession {
+  apiBase: string
   token: string
   email: string
   displayName: string | null
@@ -94,7 +96,11 @@ export class WorkspaceHost {
   constructor(private _deps: WorkspaceHostDeps) {
     // The bundle's origin is not one the API's CORS allowlist knows; this is
     // what lets it call the API at all. Set up once, before any view exists.
-    allowBundleApiAccess(apiBase(_deps.endpoint()), webBase(_deps.endpoint()))
+    try {
+      allowBundleApiAccess(apiBase(_deps.endpoint()), webBase())
+    } catch (err) {
+      if (!(err instanceof ConfigurationRequiredError)) throw err
+    }
   }
 
   /** Tell the hosted app the launcher's look and feel changed. */
@@ -161,7 +167,7 @@ export class WorkspaceHost {
       ? this._url
       : local
         ? this._urlFor(this._openHome ? "" : target, effectiveToken, sessionId)
-        : `${webBase(this._deps.endpoint())}/${encodeURIComponent(target || "")}`
+        : `${webBase()}/${encodeURIComponent(target || "")}`
     this._openHome = false
     if (target) {
       this._currentTarget = target
@@ -243,10 +249,16 @@ export class WorkspaceHost {
     this._view?.webContents.reload()
   }
 
+  /** Called only after old account storage is cleared and settings are saved. */
+  reopenForServiceConfiguration(): void {
+    this.openHome()
+    this.show(null, this._bounds)
+  }
+
   /** Explicit account home navigation; reopening the app otherwise resumes. */
   openHome(): void {
     if (!this._view) { this._openHome = true; return }
-    this._url = bundleExists() ? this._urlFor("") : `${webBase(this._deps.endpoint())}/`
+    this._url = bundleExists() ? this._urlFor("") : `${webBase()}/`
     void this._view.webContents.loadURL(this._url).catch((err) =>
       slog(`[workspace-view] home failed: ${(err as Error).message}`),
     )
@@ -414,14 +426,25 @@ export class WorkspaceHost {
    * another host) belongs in the user's browser, where it has a real address
    * bar to be judged by.
    */
+  private _configuredOrigins(): string[] {
+    const origins: string[] = []
+    const reads = [() => loginBase(), () => webBase()]
+    for (const read of reads) {
+      try {
+        origins.push(new URL(read()).origin)
+      } catch (err) {
+        if (!(err instanceof ConfigurationRequiredError)) throw err
+      }
+    }
+    return origins
+  }
+
   private _hardenNavigation(contents: Electron.WebContents): void {
     const allowed = [
       // The bundle itself.
       `${WORKSPACE_SCHEME}://${WORKSPACE_HOST}`,
-      // The account site, for the sign-in that still runs on its own pages.
-      new URL(loginBase()).origin,
-      // The hosted workspace, for a deployment with no bundle to serve.
-      new URL(webBase(this._deps.endpoint())).origin,
+      // Configured account and web origins. A missing value is not an official host.
+      ...this._configuredOrigins(),
     ]
 
     contents.setWindowOpenHandler(({ url }) => {

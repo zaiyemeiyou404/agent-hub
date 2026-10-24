@@ -53,6 +53,9 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      # The candidate Connector permits HTTP only for this explicit dev-loopback origin.
+      API_PORT: '18000'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -66,9 +69,9 @@ jobs:
         run: docker compose --env-file workspace/.env -f workspace/docker-compose.agent-hub.yml up -d --build --wait --wait-timeout 180
       - name: Verify HTTP and custom agent file sharing
         run: |
-          curl --fail http://localhost:8000/ready
+          curl --fail http://127.0.0.1:18000/ready
           curl --fail --output /dev/null http://localhost:3000
-          node scripts/agent-hub-smoke.cjs
+          AGHUB_DEV_LOOPBACK=1 OPENAGENTS_ENDPOINT=http://127.0.0.1:18000 node scripts/agent-hub-smoke.cjs
       - name: Service logs
         if: failure()
         run: docker compose --env-file workspace/.env -f workspace/docker-compose.agent-hub.yml logs --tail=100

@@ -1,5 +1,8 @@
 'use client';
 
+import { SOURCE_INSTALL_COMMAND } from '@/lib/installation';
+import { CandidateBuildLink } from '@/components/connect/candidate-build-link';
+
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { X, Copy, Check, ExternalLink, Loader2, Terminal, Cloud, Trash2, MessageSquare, Image as ImageIcon, Volume2, Key, ChevronRight, Server, Laptop, Monitor, RefreshCw, RotateCcw, Plus, HardDrive, Pencil, Folder, CornerLeftUp, Download, Sparkles, Search, ArrowRight, CheckCircle2, Zap, AlertTriangle, Mail } from 'lucide-react';
 import { useLayout } from '@/components/layout/layout-context';
@@ -17,6 +20,7 @@ import { AgentSharingButton } from '@/components/sharing/agent-sharing-button';
 import { AgentSetup, CatalogStateNotice, type CatalogState } from '@/components/agents/agent-setup';
 import { DesktopComputerStep } from './desktop-computer-step';
 import { capture } from '@/lib/analytics';
+import { webBaseFromEnv } from '@/lib/service-endpoints';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useOpenAgentsAuth } from '@/lib/openagents-auth-context';
@@ -481,8 +485,9 @@ export function ConnectAgentView({
 // Nodes Tab — devices running the launcher daemon (connect-a-node)
 // ---------------------------------------------------------------------------
 
-const INSTALL_COMMAND = 'curl -fsSL https://openagents.org/install.sh | bash';
-const INSTALL_COMMAND_WIN = 'irm https://openagents.org/install.ps1 | iex';
+const _web = webBaseFromEnv();
+const INSTALL_COMMAND = SOURCE_INSTALL_COMMAND;
+const INSTALL_COMMAND_WIN = SOURCE_INSTALL_COMMAND;
 
 function deviceIcon(deviceType: string, className?: string) {
   switch (deviceType) {
@@ -621,7 +626,7 @@ function PairingPanel({
                 <Laptop className="size-4 shrink-0 text-primary" />
                 <span>
                   {t('connect.nodeMobileGoTo1')}{' '}
-                  <span className="font-mono font-bold text-primary">openagents.org</span>{' '}
+                  <span className="font-mono font-bold text-primary">{_web || 'configuration_required'}</span>{' '}
                   {t('connect.nodeMobileGoTo2')}
                 </span>
               </div>
@@ -629,23 +634,7 @@ function PairingPanel({
             </div>
           )}
           <div className={cn('text-xs font-medium text-muted-foreground', isMobile && 'hidden')}>{t('connect.nodeInstallDesktop')}</div>
-          <div className={cn('grid grid-cols-3 gap-2', isMobile && 'hidden')}>
-            {([
-              { os: t('connect.nodeMacSilicon'), href: 'https://openagents.org/api/download/launcher/mac' },
-              { os: t('connect.nodeMacIntel'), href: 'https://openagents.org/api/download/launcher/mac-intel' },
-              { os: 'Windows', href: 'https://openagents.org/api/download/launcher/windows' },
-            ]).map((d) => (
-              <a
-                key={d.os}
-                href={d.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border hover:border-primary/40 hover:bg-primary/[0.03] transition-colors"
-              >
-                <Download className="size-3.5" />{d.os}
-              </a>
-            ))}
-          </div>
+          <CandidateBuildLink className={cn('block rounded-lg border px-3 py-2 text-center text-xs font-medium hover:bg-accent', isMobile && 'hidden')} />
 
           <div className="flex items-center gap-3 py-0.5">
             <span className="h-px flex-1 bg-border" />
@@ -1425,32 +1414,7 @@ function LocalAgentsTab({
               <p className="text-[11px] text-muted-foreground mb-2">
                 {t('connect.optionADescription')}
               </p>
-              <div className="flex gap-2">
-                <a
-                  href="https://openagents.org/api/download/launcher/mac"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 text-center px-3 py-2 text-[11px] font-medium rounded-md border hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-                >
-                  {t('connect.nodeMacSilicon')}
-                </a>
-                <a
-                  href="https://openagents.org/api/download/launcher/mac-intel"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 text-center px-3 py-2 text-[11px] font-medium rounded-md border hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-                >
-                  {t('connect.nodeMacIntel')}
-                </a>
-                <a
-                  href="https://openagents.org/api/download/launcher/windows"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 text-center px-3 py-2 text-[11px] font-medium rounded-md border hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-                >
-                  Windows
-                </a>
-              </div>
+              <CandidateBuildLink className="block text-center px-3 py-2 text-xs font-medium rounded-md border hover:bg-accent transition-colors" />
             </div>
 
             <div className="flex items-center gap-3">
@@ -1473,11 +1437,11 @@ function LocalAgentsTab({
                   <div className="relative group mt-1">
                     <pre className="bg-zinc-900 text-zinc-100 rounded-md px-3.5 py-2.5 text-xs font-mono leading-relaxed overflow-x-auto">
                       <span className="text-zinc-500">$ </span>
-                      <span className="text-emerald-400">curl -fsSL https://openagents.org/install.sh | bash</span>
+                      <span className="text-emerald-400">{INSTALL_COMMAND}</span>
                     </pre>
                     <button
                       className="absolute top-1.5 right-1.5 size-6 flex items-center justify-center rounded bg-zinc-700/80 hover:bg-zinc-600 text-zinc-300 hover:text-white opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
-                      onClick={() => { capture('cli_install_copied', { step: 'install_cli', source: 'connect_agent_view' }); copyToClipboard('curl -fsSL https://openagents.org/install.sh | bash'); }}
+                      onClick={() => { capture('cli_install_copied', { step: 'install_cli', source: 'connect_agent_view' }); copyToClipboard(INSTALL_COMMAND); }}
                     >
                       {isCopied ? <Check className="size-3" /> : <Copy className="size-3" />}
                     </button>

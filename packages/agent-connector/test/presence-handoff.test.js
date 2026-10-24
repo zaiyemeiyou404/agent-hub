@@ -56,7 +56,7 @@ describe('buildPresenceFields', () => {
 
 describe('WorkspaceClient.heartbeat presence body', () => {
   it('adds presence fields only when given', async () => {
-    const client = new WorkspaceClient('http://127.0.0.1:1');
+    const client = new WorkspaceClient('https://api.example.com');
     const bodies = [];
     client._post = async (path, body) => { bodies.push({ path, body }); return { data: { status: 'online' } }; };
     await client.heartbeat('ws', 'a', 'tok', 'sess');
@@ -70,7 +70,7 @@ describe('WorkspaceClient.heartbeat presence body', () => {
   });
 
   it('_eventToMessage exposes the human sender email and hand-off payloads', () => {
-    const client = new WorkspaceClient('http://127.0.0.1:1');
+    const client = new WorkspaceClient('https://api.example.com');
     const m1 = client._eventToMessage({ source: 'human:Mia', target: 'channel/c', payload: { content: 'hi', sender_email: ' Mia@Acme.test ' } });
     assert.equal(m1.senderEmail, 'mia@acme.test');
     const m2 = client._eventToMessage({ source: 'human:x', target: 'channel/c', payload: { content: 'hi', sender_id: 'vic@acme.test' } });

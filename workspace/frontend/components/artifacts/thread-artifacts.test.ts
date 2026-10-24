@@ -20,8 +20,8 @@ import { ThreadArtifactLinks } from './thread-artifact-links';
 import { ArtifactContent } from './artifact-content';
 function Controller(){useThreadArtifactPreview();return null;}
 let host:HTMLDivElement,root:Root;
-beforeEach(()=>{Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});vi.clearAllMocks();mocks.workspace.currentSessionId='one';mocks.workspace.files=[];mocks.workspace.browserTabs=[];host=document.createElement('div');document.body.append(host);root=createRoot(host);});
-afterEach(async()=>{await act(async()=>root.unmount());host.remove();});
+beforeEach(()=>{vi.stubEnv('NEXT_PUBLIC_WEB_BASE','https://web.example.test');Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});vi.clearAllMocks();mocks.workspace.currentSessionId='one';mocks.workspace.files=[];mocks.workspace.browserTabs=[];host=document.createElement('div');document.body.append(host);root=createRoot(host);});
+afterEach(async()=>{vi.unstubAllEnvs();await act(async()=>root.unmount());host.remove();});
 it('restores the owner default on each entry and clears previews for an unpinned thread',async()=>{
   mocks.get.mockResolvedValueOnce({artifact:{kind:'file',id:'dashboard'}}).mockResolvedValueOnce({artifact:null});
   await act(async()=>root.render(React.createElement(Controller)));
