@@ -120,6 +120,13 @@
       {
         "from": ".aghub-core/manifest.json",
         "to": "aghub-core-manifest.json"
+      },
+      {
+        "from": ".aghub-core/core/node_modules",
+        "to": "aghub-core/node_modules",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "directories": {
@@ -175,6 +182,7 @@
       ],
       "icon": "assets/icon.png",
       "category": "Development"
-    }
+    },
+    "afterPack": "./scripts/verify-packaged-core.cjs"
   }
 }
