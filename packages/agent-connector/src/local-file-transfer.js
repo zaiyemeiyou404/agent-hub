@@ -16,9 +16,11 @@ const TEXT_EXTENSIONS = new Set([
 ]);
 const ENCRYPTED_EXTENSIONS = new Set(['.gpg', '.pgp', '.age', '.p12', '.pfx', '.kdbx', '.enc']);
 const SECRET_NAME_RE = /(^|[._-])(\.env|credentials?|secrets?|id_rsa|id_ed25519|private[_-]?key|keystore)([._-]|$)/i;
+const SECRET_KEY_RE = /^(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|secret|private[_-]?key)$/i;
 const SECRET_CONTENT_RES = [
   /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
-  /\b(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|client[_ -]?secret|password|passwd|secret)\s*[:=]\s*[^\s"']{6,}/i,
+  /\b(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|client[_ -]?secret|password|passwd|secret)\s*[:=]\s*(?:"[^"\r\n]{6,}"|'[^'\r\n]{6,}'|[^\s"']{6,})/i,
+  /\bsk-[A-Za-z0-9_-]{8,}\b/,
   /\bAKIA[0-9A-Z]{16}\b/,
   /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/,
 ];
@@ -71,6 +73,24 @@ function looksBinary(bytes) {
   return sample.length > 0 && controls / sample.length > 0.05;
 }
 
+function structuredDocuments(text, extension) {
+  if (extension === '.json') return [JSON.parse(text)];
+  if (extension === '.jsonl') {
+    return text.split(/\r?\n/).filter((line) => line.trim()).map((line) => JSON.parse(line));
+  }
+  return null;
+}
+
+function structuredSecret(value, key) {
+  if (key && SECRET_KEY_RE.test(key) && (typeof value !== 'string' || value.length > 0)) return true;
+  if (typeof value === 'string' && SECRET_CONTENT_RES.some((pattern) => pattern.test(value))) return true;
+  if (Array.isArray(value)) return value.some((item) => structuredSecret(item));
+  if (value && typeof value === 'object') {
+    return Object.entries(value).some(([childKey, child]) => structuredSecret(child, childKey));
+  }
+  return false;
+}
+
 function classifySnapshot(bytes, filename) {
   const base = path.basename(String(filename || '')).toLowerCase();
   const extension = path.extname(base);
@@ -93,7 +113,20 @@ function classifySnapshot(bytes, filename) {
   if (SECRET_CONTENT_RES.some((pattern) => pattern.test(text))) {
     reasons.push(reason('credential_pattern', 'Credential-like content was detected'));
   }
-  if (reasons.length) return { classification: 'sensitive', reasons };
+  if (extension === '.json' || extension === '.jsonl') {
+    try {
+      const documents = structuredDocuments(text, extension);
+      if (documents.some((document) => structuredSecret(document))) {
+        reasons.push(reason('structured_credential', 'A structured field name or value looks like a credential'));
+      }
+    } catch {
+      reasons.push(reason('structured_parse_failed', 'Structured content could not be parsed, so it was not treated as safe'));
+    }
+  }
+  if (reasons.some((item) => item.code !== 'structured_parse_failed')) {
+    return { classification: 'sensitive', reasons };
+  }
+  if (reasons.length) return { classification: 'uncertain', reasons };
   if (!TEXT_EXTENSIONS.has(extension)) {
     return { classification: 'uncertain', reasons: [reason('unsupported_type', 'This file type is not supported by the deterministic classifier')] };
   }
@@ -208,6 +241,30 @@ function loadSnapshot(requestId, snapshotDir = DEFAULT_SNAPSHOT_DIR) {
   return { ...manifest, snapshotPath: paths.content };
 }
 
+function reapSnapshots(snapshotDir = DEFAULT_SNAPSHOT_DIR, liveIds = []) {
+  const live = new Set(liveIds);
+  const removed = [];
+  let names;
+  try {
+    names = fs.readdirSync(snapshotDir);
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return removed;
+    throw err;
+  }
+  const seen = new Set();
+  for (const name of names) {
+    const match = /^(.*)\.(snapshot|json)$/.exec(name);
+    if (!match || seen.has(match[1]) || live.has(match[1])) continue;
+    const full = path.join(snapshotDir, name);
+    const stat = fs.lstatSync(full);
+    if (stat.isSymbolicLink()) continue;
+    seen.add(match[1]);
+    removeSnapshot(match[1], snapshotDir);
+    removed.push(match[1]);
+  }
+  return removed;
+}
+
 function removeSnapshot(requestId, snapshotDir = DEFAULT_SNAPSHOT_DIR) {
   const paths = snapshotPaths(requestId, snapshotDir);
   for (const file of [paths.content, paths.metadata]) {
@@ -222,5 +279,6 @@ module.exports = {
   inspectAndSnapshot,
   loadAuthorizedRoots,
   loadSnapshot,
+  reapSnapshots,
   removeSnapshot,
 };

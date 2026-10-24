@@ -1,0 +1,80 @@
+# Standalone test configuration. Never combine with the production/preview file.
+# This prepares isolation only: no automatic migrations or host credentials.
+name: aghub-t00-test
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aghub_t00_test
+      POSTGRES_USER: aghub_test
+      POSTGRES_PASSWORD: ${AGHUB_TEST_DB_PASSWORD:?Provide a new test-only password}
+    volumes:
+      - test_pgdata:/var/lib/postgresql/data
+    networks: [test_internal]
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 128
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U aghub_test -d aghub_t00_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  backend:
+    image: aghub-t00-backend:baseline
+    build:
+      context: ./backend
+      dockerfile: production.Dockerfile
+    environment:
+      DATABASE_URL: postgresql://aghub_test:${AGHUB_TEST_DB_PASSWORD:?Provide a new test-only password}@db:5432/aghub_t00_test
+      AUTH_MODE: workspace_token
+      IDENTITY_MODE: standalone
+      FILE_STORAGE_BACKEND: local
+      FILE_STORAGE_PATH: /data/test-files
+      WORKSPACE_ENDPOINT: http://127.0.0.1:18000
+      PUBLIC_API_BASE: http://127.0.0.1:18000
+      FRONTEND_BASE_URL: http://127.0.0.1:13000
+      CORS_ORIGINS: http://127.0.0.1:13000
+      ACCOUNT_API_URL: http://127.0.0.1:18000
+      ANALYTICS_ENABLED: "false"
+      POSTHOG_API_KEY: ""
+      FIREBASE_PROJECT_ID: ""
+      FIREBASE_WEB_API_KEY: ""
+      FIREBASE_CREDENTIALS_JSON: ""
+      YUMI_ENABLED: "false"
+      ROUTER_LLM_ENABLED: "false"
+      CAMPAIGN_ENABLED: "false"
+      BACKGROUND_JOBS_ENABLED: "false"
+      WEB_CONCURRENCY: "1"
+      DB_POOL_SIZE: "5"
+      DB_MAX_OVERFLOW: "0"
+      THREADPOOL_TOKENS: "5"
+    volumes:
+      - test_files:/data/test-files
+    ports: ["127.0.0.1:18000:8000"]
+    networks: [test_internal]
+    mem_limit: 1g
+    cpus: 2
+    pids_limit: 256
+    depends_on:
+      db:
+        condition: service_healthy
+  frontend:
+    image: aghub-t00-frontend:baseline
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://127.0.0.1:18000
+        NEXT_PUBLIC_INLINE_LOGIN: "1"
+    ports: ["127.0.0.1:13000:3000"]
+    networks: [test_internal]
+    mem_limit: 1g
+    cpus: 2
+    pids_limit: 256
+networks:
+  test_internal:
+    # Docker leaves host port bindings empty on an internal network.
+    # Published ports in this file stay bound to 127.0.0.1.
+    driver: bridge
+volumes:
+  test_pgdata:
+  test_files:

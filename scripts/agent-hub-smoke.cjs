@@ -36,10 +36,13 @@ async function main() {
       const messages = await client.pollMessages(workspaceId, channelName, token);
       return messages.find(message => (message.content || '').startsWith('Demo complete.'));
     }, 'custom agent reply');
-    const listing = await client.listFiles(workspaceId, token);
+    // Read as the agent that owns the report; a bare machine token must not
+    // bypass file visibility rules merely because it can manage this workspace.
+    const agentClient = client.withAgent('custom-demo');
+    const listing = await agentClient.listFiles(workspaceId, token);
     const file = listing.files.find(item => item.filename.endsWith('custom-agent-report.txt'));
     assert.ok(file, 'custom agent uploaded the shared report');
-    const content = await client.readFile(workspaceId, token, file.id);
+    const content = await agentClient.readFile(workspaceId, token, file.id);
     assert.ok(content.toString().includes(marker), 'downloaded report contains the request');
     console.log('PASS: workspace creation, agent join/poll, group reply, shared-file upload and download');
   } finally {

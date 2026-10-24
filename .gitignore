@@ -283,3 +283,6 @@ tests/end_to_end/agents.config.json
 
 # Reviewed production dependency constraints
 !workspace/backend/requirements.production.lock
+
+# Synthetic accounts, snapshots and logs from the isolated baseline runner.
+.tmp/aghub-baseline/

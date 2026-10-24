@@ -1393,7 +1393,8 @@ def list_files(
     query = query.order_by(FileRecord.created_at.desc())
 
     # Permission model: a person / identified agent sees owner ∪ grants ∪
-    # public ∪ files inheriting from a thread they can read. Machines see all.
+    # public ∪ files inheriting from a thread they can read. A device token
+    # without an agent identity cannot read private or agent-owned files.
     _viewer = _viewer_for(db, workspace, x_workspace_token, authorization)
     query = query.where(file_read_clause(db, workspace.id, _viewer))
     total = db.execute(select(func.count()).select_from(query.order_by(None).subquery())).scalar()
