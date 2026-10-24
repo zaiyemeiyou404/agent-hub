@@ -1,0 +1,86 @@
+{
+  "measuredOn": "2026-10-24",
+  "sourceCommit": "c82873aadffffb17a2cb036b194917f40323f1ef",
+  "node": "v24.14.0",
+  "platform": "win32",
+  "arch": "x64",
+  "files": [
+    {
+      "path": "pyproject.toml",
+      "sha256": "7b54c14543d18e8e5894da824e72843954c69e7508c10d2fdcb5f3f9331077ec"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6"
+    },
+    {
+      "path": "packages/launcher/package.json",
+      "sha256": "dd42c35bbf98fb98e5521b5b562e6014703c7f564c4415f6089e68bb60ea1758",
+      "name": "openagents",
+      "version": "1.1.1",
+      "license": "MIT"
+    },
+    {
+      "path": "packages/launcher/package-lock.json",
+      "sha256": "a931f53450ef78ee5059dd22eef021b32b6e1df8cf3de6e0c7c70b48e8f67601",
+      "name": "openagents",
+      "version": "1.1.1",
+      "license": null,
+      "lockfileVersion": 3,
+      "rootConnectorDependency": "file:../agent-connector",
+      "connector": {
+        "resolved": "../agent-connector",
+        "link": true
+      }
+    },
+    {
+      "path": "packages/agent-connector/package.json",
+      "sha256": "f0ceb8d31a20603d0bff7d25b30d13a289c62031bc7590a88ebff102cbf4684f",
+      "name": "@openagents-org/agent-launcher",
+      "version": "0.2.196",
+      "license": "MIT"
+    },
+    {
+      "path": "packages/agent-connector/package-lock.json",
+      "sha256": "466237e8fc37751f2148ac0094cb0dfef7fa4e93a236eb8bc551bb01b226d42f",
+      "name": "@openagents-org/agent-launcher",
+      "version": "0.2.196",
+      "license": null,
+      "lockfileVersion": 3,
+      "rootConnectorDependency": null,
+      "connector": null
+    },
+    {
+      "path": "workspace/frontend/package.json",
+      "sha256": "e3307bddccc207cf3fc9267eaf3b2aad467d73bd4715661b84a1cdc86dbf02cc",
+      "name": "openagents-workspace",
+      "version": "0.1.0",
+      "license": null
+    },
+    {
+      "path": "workspace/frontend/package-lock.json",
+      "sha256": "d74d04ea1402a30517480067fff1af533513ecdcf13f40a5fe773d00f48d18c4",
+      "name": "openagents-workspace",
+      "version": "0.1.0",
+      "license": null,
+      "lockfileVersion": 3,
+      "rootConnectorDependency": null,
+      "connector": null
+    },
+    {
+      "path": "sdk/studio/package.json",
+      "sha256": "97763dfe7eef50770d1eedb722507ff42435aaacd6d237eec3dcf84500970708",
+      "name": "openagents-studio",
+      "version": "1.0.7",
+      "license": "MIT"
+    },
+    {
+      "path": "workspace/backend/requirements.txt",
+      "sha256": "ced978a68a07471edaab62aa61279ce074a2af4796a874352cab493380e133c7"
+    },
+    {
+      "path": "workspace/backend/requirements.production.lock",
+      "sha256": "309a46054695f1d601a01750626211a9fb550ff8e7809e059479dfdf8c870e81"
+    }
+  ]
+}
